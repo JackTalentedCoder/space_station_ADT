@@ -6,10 +6,6 @@
   ### ADT-Tweak Start
   components:
   - type: Amputatable
-    severedLeftArm: LeftArmHuman
-    severedLeftLeg: LeftLegHuman
-    severedRightArm: RightArmHuman
-    severedRightLeg: RightLegHuman
   ### ADT-Tweak End
 
 #Syndie

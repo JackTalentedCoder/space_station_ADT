@@ -25,3 +25,12 @@ amputation-verb-rightarm = Ампутировать правую руку
 amputation-verb-leftleg = Ампутировать левую ногу
 amputation-verb-rightleg = Ампутировать правую ногу
 amputation-verb-head = Ампутировать голову
+
+amputation-cannot-amputate-active-hand = Нельзя ампутировать руку, в которой держишь инструмент!
+amputation-both-legs-removed-cannot-stand = Обе ноги ампутированы! Вы не можете стоять.
+amputation-all-limbs-removed-paralyzed = Все конечности ампутированы! Вы полностью парализованы.
+
+# Для отображения состояния
+amputation-status-no-legs = Нет ног
+amputation-status-no-arms = Нет рук
+amputation-status-paralyzed = Парализован

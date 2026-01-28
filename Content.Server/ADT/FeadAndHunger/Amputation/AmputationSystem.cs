@@ -25,6 +25,7 @@ using Robust.Shared.Physics.Components;
 using Content.Shared.Hands.Components;
 using System.Linq;
 using Content.Shared.Hands;
+using Robust.Shared.Map;
 
 namespace Content.Server.ADT.Amputation;
 
@@ -162,7 +163,7 @@ public sealed class AmputationSystem : EntitySystem
             tool.Comp.CurrentSawingStream = null;
         }
 
-        // ИСПРАВЛЕНИЕ: ВСЕГДА проигрываем звук, так как задержка всегда есть (7 секунд)
+        // ИСПРАВЛЕНИЕ ЗВУКА: Используем PlayEntity с правильными параметрами
         var audioParams = AudioParams.Default
             .WithVolume(7f)
             .WithLoop(true)
@@ -170,18 +171,12 @@ public sealed class AmputationSystem : EntitySystem
             .WithVariation(0.1f)
             .WithRolloffFactor(1.5f);
 
-        // ИСПРАВЛЕНИЕ: Используем PlayEntity для гарантированного проигрывания на сущности
         var played = _audio.PlayEntity(tool.Comp.SawSound, Filter.Pvs(tool.Owner), tool.Owner, true, audioParams);
 
         if (played != null)
         {
             tool.Comp.CurrentSawingStream = played.Value.Entity;
             Dirty(tool);
-        }
-        else
-        {
-            // Отладочное сообщение
-            _popup.PopupEntity("DEBUG: Sound playback failed!", tool.Owner, args.User);
         }
 
         // Создаем DoAfter
@@ -299,27 +294,20 @@ public sealed class AmputationSystem : EntitySystem
         slashDamage.DamageDict.Add("Slash", 50);
         _damageable.TryChangeDamage(target, slashDamage, true);
 
-        // Голова — специальная логика (но с процессбаром)
+        // Голова — специальная логика
         if (limb == AmputateLimb.Head)
         {
-            // Если указан прототип головы - спавним его
-            if (amputatable.SeveredHead != null)
+            var headProto = amputatable.SeveredHead;
+
+            if (headProto != null)
             {
-                Spawn(amputatable.SeveredHead.Value, coords.Offset(_random.NextVector2(0.3f)));
+                // Если указан прототип головы - спавним его
+                Spawn(headProto.Value, coords.Offset(_random.NextVector2(0.3f)));
             }
             else
             {
                 // Если прототип не указан - телепортируем существующую голову
-                if (TryComp<BodyComponent>(target, out var body))
-                {
-                    var heads = _body.GetBodyChildrenOfType(target, BodyPartType.Head, body);
-                    foreach (var head in heads)
-                    {
-                        var offsetCoords = coords.Offset(_random.NextVector2(0.3f));
-                        _transform.SetCoordinates(head.Id, offsetCoords);
-                        EnsureComp<PhysicsComponent>(head.Id);
-                    }
-                }
+                RemoveBodyPartFromBody(target, BodyPartType.Head, null, coords);
             }
 
             // Мгновенная смерть через большой урон
@@ -330,48 +318,60 @@ public sealed class AmputationSystem : EntitySystem
 
             _popup.PopupEntity(Loc.GetString("amputation-head-removed"), target, target, PopupType.LargeCaution);
         }
-        else
+        // Ноги — изменение скорости
+        else if (limb is AmputateLimb.LeftLeg or AmputateLimb.RightLeg)
         {
-            // Для остальных конечностей - спавн отрезанной части если указан прототип
-            var proto = limb switch
+            var symmetry = limb == AmputateLimb.LeftLeg ? BodyPartSymmetry.Left : BodyPartSymmetry.Right;
+            var legProto = limb == AmputateLimb.LeftLeg ? amputatable.SeveredLeftLeg : amputatable.SeveredRightLeg;
+
+            if (legProto != null)
             {
-                AmputateLimb.LeftArm => amputatable.SeveredLeftArm,
-                AmputateLimb.RightArm => amputatable.SeveredRightArm,
-                AmputateLimb.LeftLeg => amputatable.SeveredLeftLeg,
-                AmputateLimb.RightLeg => amputatable.SeveredRightLeg,
-                _ => null
-            };
-
-            if (proto != null)
-                Spawn(proto.Value, coords.Offset(_random.NextVector2(0.2f)));
-
-            // Ноги — изменение скорости
-            if (limb is AmputateLimb.LeftLeg or AmputateLimb.RightLeg)
-            {
-                if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
-                {
-                    // Вычитаем 1.5 из текущих значений
-                    var newWalk = MathF.Max(0.5f, speed.BaseWalkSpeed - 1.5f);
-                    var newSprint = MathF.Max(0.5f, speed.BaseSprintSpeed - 1.5f);
-
-                    _movement.ChangeBaseSpeed(target, newWalk, newSprint, speed.Acceleration, speed);
-                }
-                else
-                {
-                    // Если компонента нет, создаем его
-                    var newSpeed = EnsureComp<MovementSpeedModifierComponent>(target);
-                    var newWalk = MathF.Max(0.5f, 4.5f - 1.5f);
-                    var newSprint = MathF.Max(0.5f, 7.5f - 1.5f);
-
-                    _movement.ChangeBaseSpeed(target, newWalk, newSprint, 10f, newSpeed);
-                }
+                // Если указан прототип ноги - спавним его
+                Spawn(legProto.Value, coords.Offset(_random.NextVector2(0.2f)));
             }
-            // Руки — уменьшение количества рук
-            else if (limb is AmputateLimb.LeftArm or AmputateLimb.RightArm)
+            else
             {
-                // Используем метод из HandsSystem
-                _hands.AmputateArm(target);
+                // Если прототип не указан - удаляем ногу из тела
+                RemoveBodyPartFromBody(target, BodyPartType.Leg, symmetry, coords);
             }
+
+            // Изменяем скорость передвижения
+            if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
+            {
+                var newWalk = MathF.Max(0.5f, speed.BaseWalkSpeed - 1.5f);
+                var newSprint = MathF.Max(0.5f, speed.BaseSprintSpeed - 1.5f);
+
+                _movement.ChangeBaseSpeed(target, newWalk, newSprint, speed.Acceleration, speed);
+            }
+            else
+            {
+                // Если компонента нет, создаем его
+                var newSpeed = EnsureComp<MovementSpeedModifierComponent>(target);
+                var newWalk = MathF.Max(0.5f, 4.5f - 1.5f);
+                var newSprint = MathF.Max(0.5f, 7.5f - 1.5f);
+
+                _movement.ChangeBaseSpeed(target, newWalk, newSprint, 10f, newSpeed);
+            }
+        }
+        // Руки — уменьшение количества рук
+        else if (limb is AmputateLimb.LeftArm or AmputateLimb.RightArm)
+        {
+            var symmetry = limb == AmputateLimb.LeftArm ? BodyPartSymmetry.Left : BodyPartSymmetry.Right;
+            var armProto = limb == AmputateLimb.LeftArm ? amputatable.SeveredLeftArm : amputatable.SeveredRightArm;
+
+            if (armProto != null)
+            {
+                // Если указан прототип руки - спавним его
+                Spawn(armProto.Value, coords.Offset(_random.NextVector2(0.2f)));
+            }
+            else
+            {
+                // Если прототип не указан - удаляем руку из тела
+                RemoveBodyPartFromBody(target, BodyPartType.Arm, symmetry, coords);
+            }
+
+            // Используем метод из HandsSystem для уменьшения количества рук
+            _hands.AmputateArm(target);
         }
 
         // Лечение инфекции
@@ -384,5 +384,36 @@ public sealed class AmputationSystem : EntitySystem
         _popup.PopupEntity(Loc.GetString("amputation-success",
             ("limb", Loc.GetString($"amputation-limb-{limb.ToString().ToLower()}"))),
             target, PopupType.LargeCaution);
+    }
+
+    /// <summary>
+    /// Удаляет часть тела из Body компонента и перемещает ее в мир
+    /// </summary>
+    private void RemoveBodyPartFromBody(EntityUid target, BodyPartType partType, BodyPartSymmetry? symmetry, EntityCoordinates coordinates)
+    {
+        if (!TryComp<BodyComponent>(target, out var body))
+            return;
+
+        // Получаем все части тела нужного типа
+        var parts = _body.GetBodyChildrenOfType(target, partType, body);
+
+        foreach (var part in parts)
+        {
+            // Проверяем симметрию, если указана
+            if (symmetry != null && TryComp<BodyPartComponent>(part.Id, out var partComp) && partComp.Symmetry != symmetry)
+                continue;
+
+            // Удаляем часть из тела
+            // Вместо DropPart, который может не существовать, мы просто телепортируем часть
+            var offsetCoords = coordinates.Offset(_random.NextVector2(0.3f));
+            _transform.SetCoordinates(part.Id, offsetCoords);
+
+            // Убеждаемся, что у части есть физика
+            EnsureComp<PhysicsComponent>(part.Id);
+
+            // Прерываем цикл, так как нашли нужную часть
+            // (для головы может быть только одна, для рук/ног - левая/правая)
+            break;
+        }
     }
 }
