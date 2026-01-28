@@ -307,7 +307,18 @@ namespace Content.Server.Hands.Systems
                 );
             }
         }
+        // ADT-Tweak Start
+        public void AmputateArm(EntityUid uid)
+        {
+            if (!TryComp<HandsComponent>(uid, out var hands) || hands.SortedHands.Count == 0)
+                return;
 
+            var toRemove = hands.SortedHands[^1];
+            hands.SortedHands.RemoveAt(hands.SortedHands.Count - 1);
+            hands.Hands.Remove(toRemove);
+            Dirty(uid, hands);
+        }
+        // ADT-Tweak End
         #endregion
     }
 }

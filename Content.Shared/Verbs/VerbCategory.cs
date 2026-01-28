@@ -72,6 +72,8 @@ namespace Content.Shared.Verbs
             new("verb-categories-adminroom", "/Textures/Interface/VerbIcons/eject.svg.192dpi.png", iconsOnly: true) { Columns = 3 };
 
         public static readonly VerbCategory PaperOrigami = new("verb-categories-paper-origami-title", null);
+        /// FEAR AND HUNGER
+        public static readonly VerbCategory Amputation = new("verb-categories-amputation", null);
         // adt-tweak-end
         public static readonly VerbCategory SetTransferAmount =
             new("verb-categories-transfer", "/Textures/Interface/VerbIcons/spill.svg.192dpi.png");

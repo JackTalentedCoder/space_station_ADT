@@ -241,3 +241,13 @@
     state: take_entity
   name: alerts-pickup-name
   description: alerts-pickup-desc
+
+### Fear and hunger status effects
+
+- type: alert
+  id: ADTAlertInfected
+  icons:
+    - sprite: /Textures/ADT/Interface/Alerts/infected.rsi
+      state: icon
+  name: alerts-infection-name
+  description: alerts-infection-desc
