@@ -245,9 +245,17 @@
 ### Fear and hunger status effects
 
 - type: alert
-  id: ADTAlertInfected
+  id: ADTAlertInfectedLegs
   icons:
-    - sprite: /Textures/ADT/Interface/Alerts/infected.rsi
+    - sprite: /Textures/ADT/Interface/Alerts/infected_leg.rsi
       state: icon
-  name: alerts-infection-name
-  description: alerts-infection-desc
+  name: alerts-infection-leg-name
+  description: alerts-infection-leg-desc
+
+- type: alert
+  id: ADTAlertInfectedHands
+  icons:
+    - sprite: /Textures/ADT/Interface/Alerts/infected-arm.rsi
+      state: icon
+  name: alerts-infection-hands-name
+  description: alerts-infection-hands-desc

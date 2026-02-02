@@ -8,6 +8,12 @@ namespace Content.Shared.ADT.Infection.Components;
 public sealed partial class ContactInfectionComponent : Component
 {
     /// <summary>
+    /// Тип инфекции, которую наносит этот контакт
+    /// </summary>
+    [DataField]
+    public InfectionType InfectionType = InfectionType.Both;
+
+    /// <summary>
     /// Опциональный whitelist для игнора (как в DamageContacts)
     /// </summary>
     [DataField]

@@ -23,11 +23,36 @@ public sealed class MeleeInfectSystem : EntitySystem
 
         foreach (var hit in args.HitEntities)
         {
+            // Проверяем, есть ли уже инфекция
+            if ((comp.InfectionType == InfectionType.Hands || comp.InfectionType == InfectionType.Both) &&
+                HasComp<HandInfectionComponent>(hit))
+                continue;
+
+            if ((comp.InfectionType == InfectionType.Legs || comp.InfectionType == InfectionType.Both) &&
+                HasComp<LegInfectionComponent>(hit))
+                continue;
+
             if (_random.Prob(comp.InfectionChance))
             {
-                var inf = EnsureComp<PendingInfectionComponent>(hit);
-                // Можно настроить grace/damage здесь, если нужно через DataField
-                Dirty(hit, inf);
+                // Случайный выбор типа инфекции, если установлен Both
+                var infectionType = comp.InfectionType;
+                if (infectionType == InfectionType.Both)
+                {
+                    infectionType = _random.Prob(0.5f) ? InfectionType.Hands : InfectionType.Legs;
+                }
+
+                switch (infectionType)
+                {
+                    case InfectionType.Hands:
+                        var handInf = EnsureComp<HandInfectionComponent>(hit);
+                        Dirty(hit, handInf);
+                        break;
+
+                    case InfectionType.Legs:
+                        var legInf = EnsureComp<LegInfectionComponent>(hit);
+                        Dirty(hit, legInf);
+                        break;
+                }
             }
         }
     }

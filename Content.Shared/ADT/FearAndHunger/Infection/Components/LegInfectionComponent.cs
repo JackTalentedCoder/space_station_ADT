@@ -1,17 +1,15 @@
 using Content.Shared.Alert;
 using Content.Shared.Damage;
-using Content.Shared.Damage.Prototypes;
 using Robust.Shared.GameStates;
 using Robust.Shared.Prototypes;
-using Robust.Shared.Timing;
 
 namespace Content.Shared.ADT.Infection.Components;
 
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
-public sealed partial class PendingInfectionComponent : Component
+public sealed partial class LegInfectionComponent : Component
 {
     /// <summary>
-    /// Начальная длительность grace period (для фиксированного алерта)
+    /// Начальная длительность grace period
     /// </summary>
     [DataField, AutoNetworkedField]
     public TimeSpan InitialGracePeriod = TimeSpan.FromSeconds(30);
@@ -23,13 +21,13 @@ public sealed partial class PendingInfectionComponent : Component
     public TimeSpan GracePeriod = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Время старта алерта (для фиксированного cooldown)
+    /// Время старта алерта
     /// </summary>
     [DataField]
     public TimeSpan AlertStartTime;
 
     /// <summary>
-    /// Флаг, что grace ещё активен (для переключения на статичный алерт после истечения)
+    /// Флаг, что grace ещё активен
     /// </summary>
     [DataField, AutoNetworkedField]
     public bool GraceActive = true;
@@ -50,8 +48,8 @@ public sealed partial class PendingInfectionComponent : Component
     };
 
     /// <summary>
-    /// ID алерта
+    /// ID алерта для инфекции ног
     /// </summary>
     [DataField(required: true)]
-    public ProtoId<AlertPrototype> AlertId = "ADTAlertInfected";
+    public ProtoId<AlertPrototype> AlertId = "ADTAlertInfectedLegs";
 }

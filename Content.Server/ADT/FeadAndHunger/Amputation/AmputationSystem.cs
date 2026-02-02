@@ -316,6 +316,10 @@ public sealed class AmputationSystem : EntitySystem
             deathDamage.DamageDict.Add("Slash", 50);
             _damageable.TryChangeDamage(target, deathDamage, true);
 
+            // Удаляем все инфекции при ампутации головы
+            RemCompDeferred<HandInfectionComponent>(target);
+            RemCompDeferred<LegInfectionComponent>(target);
+
             _popup.PopupEntity(Loc.GetString("amputation-head-removed"), target, target, PopupType.LargeCaution);
         }
         // Ноги — изменение скорости
@@ -334,6 +338,9 @@ public sealed class AmputationSystem : EntitySystem
                 // Если прототип не указан - удаляем ногу из тела
                 RemoveBodyPartFromBody(target, BodyPartType.Leg, symmetry, coords);
             }
+
+            // Удаляем инфекцию ног при ампутации любой ноги
+            RemCompDeferred<LegInfectionComponent>(target);
 
             // Изменяем скорость передвижения
             if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
@@ -370,12 +377,12 @@ public sealed class AmputationSystem : EntitySystem
                 RemoveBodyPartFromBody(target, BodyPartType.Arm, symmetry, coords);
             }
 
+            // Удаляем инфекцию рук при ампутации любой руки
+            RemCompDeferred<HandInfectionComponent>(target);
+
             // Используем метод из HandsSystem для уменьшения количества рук
             _hands.AmputateArm(target);
         }
-
-        // Лечение инфекции
-        RemCompDeferred<PendingInfectionComponent>(target);
 
         // Отметка ампутации
         amputated.Amputated.Add(limb);
