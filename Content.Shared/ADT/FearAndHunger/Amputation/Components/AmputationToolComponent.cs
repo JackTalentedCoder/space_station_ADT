@@ -14,7 +14,10 @@ public sealed partial class AmputationToolComponent : Component
     public SoundSpecifier SawSound = new SoundPathSpecifier("/Audio/ADT/Fear_and_Hunger/Effects/amputation.ogg");
 
     [DataField]
-    public TimeSpan AmputationDelay = TimeSpan.FromSeconds(8);
+    public SoundSpecifier SuccessSound = new SoundPathSpecifier("/Audio/ADT/Fear_and_Hunger/Effects/rip_appart.ogg");
+
+    [DataField]
+    public TimeSpan AmputationDelay = TimeSpan.FromSeconds(7.5);
 
     public EntityUid? CurrentSawingStream;
 }

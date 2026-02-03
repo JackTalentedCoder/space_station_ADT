@@ -11,6 +11,7 @@ using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Movement.Components;
 using Content.Shared.Movement.Systems;
 using Content.Shared.Popups;
+using Content.Shared.Standing;
 using Content.Shared.Verbs;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Player;
@@ -26,6 +27,8 @@ using Content.Shared.Hands.Components;
 using System.Linq;
 using Content.Shared.Hands;
 using Robust.Shared.Map;
+using Content.Shared.Localizations;
+using Content.Shared.Traits.Assorted;
 
 namespace Content.Server.ADT.Amputation;
 
@@ -40,6 +43,7 @@ public sealed class AmputationSystem : EntitySystem
     [Dependency] private readonly SharedPopupSystem _popup = default!;
     [Dependency] private readonly SharedTransformSystem _transform = default!;
     [Dependency] private readonly IRobustRandom _random = default!;
+    [Dependency] private readonly StandingStateSystem _standing = default!;
 
     public override void Initialize()
     {
@@ -56,16 +60,78 @@ public sealed class AmputationSystem : EntitySystem
         if (ent.Comp.Amputated.Count == 0)
             return;
 
-        var limbs = new List<string>();
-        foreach (var limb in ent.Comp.Amputated)
+        // Собираем список ампутированных конечностей как строки
+        var amputatedLimbNames = new List<string>();
+
+        // Проверяем наличие каждой конечности
+        if (ent.Comp.Amputated.Contains(AmputateLimb.LeftArm))
+            amputatedLimbNames.Add(Loc.GetString("amputation-limb-leftarm"));
+
+        if (ent.Comp.Amputated.Contains(AmputateLimb.RightArm))
+            amputatedLimbNames.Add(Loc.GetString("amputation-limb-rightarm"));
+
+        if (ent.Comp.Amputated.Contains(AmputateLimb.LeftLeg))
+            amputatedLimbNames.Add(Loc.GetString("amputation-limb-leftleg"));
+
+        if (ent.Comp.Amputated.Contains(AmputateLimb.RightLeg))
+            amputatedLimbNames.Add(Loc.GetString("amputation-limb-rightleg"));
+
+        if (ent.Comp.Amputated.Contains(AmputateLimb.Head))
+            amputatedLimbNames.Add(Loc.GetString("amputation-limb-head"));
+
+        // Формируем текст для ампутированных конечностей
+        if (amputatedLimbNames.Count > 0)
         {
-            limbs.Add(Loc.GetString($"amputation-limb-{limb.ToString().ToLower()}"));
+            var limbsText = string.Join(", ", amputatedLimbNames);
+
+            using (args.PushGroup(nameof(AmputatedLimbsComponent)))
+            {
+                args.PushMarkup(Loc.GetString("amputation-examine-detailed",
+                    ("limbs", limbsText)));
+            }
         }
 
-        var text = Loc.GetString("amputation-examine", ("limbs", string.Join(", ", limbs)));
-        args.PushText(text);
-    }
+        // Проверяем состояние передвижения
+        var amputatedArmsCount = ent.Comp.Amputated.Count(l => l is AmputateLimb.LeftArm or AmputateLimb.RightArm);
+        var amputatedLegsCount = ent.Comp.Amputated.Count(l => l is AmputateLimb.LeftLeg or AmputateLimb.RightLeg);
 
+        // Если нет ног
+        if (amputatedLegsCount >= 2)
+        {
+            // Проверяем, есть ли хотя бы одна рука
+            bool hasArms = false;
+
+            // Сначала проверяем по ампутированным рукам
+            if (amputatedArmsCount < 2) // Если не ампутированы обе руки
+            {
+                // Проверяем компонент рук
+                if (TryComp<HandsComponent>(ent, out var hands))
+                {
+                    // ИСПРАВЛЕНИЕ: Проверяем, есть ли хотя бы одна рука в компоненте
+                    // Считаем, сколько рук осталось (общее количество рук минус ампутированные)
+                    // Но правильнее проверить, что в hands.Hands есть хотя бы одна рука
+                    hasArms = hands.Hands.Count > 0;
+                }
+                else
+                {
+                    // Если нет компонента рук, но руки не ампутированы, считаем что они есть
+                    // Это для существ без компонента HandsComponent
+                    hasArms = true;
+                }
+            }
+
+            if (hasArms)
+            {
+                // Если есть ноги ампутированы, но есть руки
+                args.PushMarkup(Loc.GetString("amputation-examine-crawl-only"));
+            }
+            else
+            {
+                // Если нет ни ног, ни рук
+                args.PushMarkup(Loc.GetString("amputation-examine-cannot-move"));
+            }
+        }
+    }
     private void OnGetVerbs(Entity<AmputationToolComponent> ent, ref GetVerbsEvent<Verb> args)
     {
         if (!args.CanAccess || !args.CanInteract || args.Hands == null)
@@ -145,6 +211,27 @@ public sealed class AmputationSystem : EntitySystem
             }
         }
 
+        // Проверка для ног - есть ли нога для ампутации?
+        if (limb is AmputateLimb.LeftLeg or AmputateLimb.RightLeg)
+        {
+            // Для ног проверяем наличие BodyComponent
+            if (TryComp<BodyComponent>(target, out var body))
+            {
+                var symmetry = limb == AmputateLimb.LeftLeg ? BodyPartSymmetry.Left : BodyPartSymmetry.Right;
+                var legs = _body.GetBodyChildrenOfType(target, BodyPartType.Leg, body);
+
+                var hasLegInLocation = legs.Any(leg =>
+                    TryComp<BodyPartComponent>(leg.Id, out var legComp) &&
+                    legComp.Symmetry == symmetry);
+
+                if (!hasLegInLocation)
+                {
+                    _popup.PopupEntity(Loc.GetString("amputation-no-leg-in-location"), target, args.User);
+                    return;
+                }
+            }
+        }
+
         // Проверка максимального количества ампутаций
         if (!CheckMaxAmputations(target, limb, amputated))
         {
@@ -163,7 +250,7 @@ public sealed class AmputationSystem : EntitySystem
             tool.Comp.CurrentSawingStream = null;
         }
 
-        // ИСПРАВЛЕНИЕ ЗВУКА: Используем PlayEntity с правильными параметрами
+        // Звук процесса ампутации
         var audioParams = AudioParams.Default
             .WithVolume(7f)
             .WithLoop(true)
@@ -235,13 +322,15 @@ public sealed class AmputationSystem : EntitySystem
     private void OnDoAfter(AmputationDoAfterEvent ev)
     {
         // Остановка звука
-        if (ev.Used != null && TryComp<AmputationToolComponent>(ev.Used, out var tool))
+        if (ev.Used != null && TryComp<AmputationToolComponent>(ev.Used, out var toolComp))
         {
-            if (tool.CurrentSawingStream != null)
-                _audio.Stop(tool.CurrentSawingStream);
+            if (toolComp.CurrentSawingStream != null)
+            {
+                _audio.Stop(toolComp.CurrentSawingStream);
+                toolComp.CurrentSawingStream = null;
+            }
 
-            tool.CurrentSawingStream = null;
-            Dirty(ev.Used.Value, tool);
+            Dirty(ev.Used.Value, toolComp);
         }
 
         // Проверка, что DoAfter завершился успешно
@@ -252,7 +341,7 @@ public sealed class AmputationSystem : EntitySystem
         }
 
         // Проверка компонентов
-        if (!TryComp<AmputationToolComponent>(ev.Used, out var toolComp) ||
+        if (!TryComp<AmputationToolComponent>(ev.Used, out var tool) ||
             ev.Target is not {} target ||
             !HasComp<AmputatableComponent>(target))
         {
@@ -275,10 +364,10 @@ public sealed class AmputationSystem : EntitySystem
             return;
         }
 
-        PerformAmputation(target, ev.Limb, amputated);
+        PerformAmputation(target, ev.Limb, amputated, tool);
     }
 
-    private void PerformAmputation(EntityUid target, AmputateLimb limb, AmputatedLimbsComponent amputated)
+    private void PerformAmputation(EntityUid target, AmputateLimb limb, AmputatedLimbsComponent amputated, AmputationToolComponent tool)
     {
         var coords = Transform(target).Coordinates;
 
@@ -342,22 +431,49 @@ public sealed class AmputationSystem : EntitySystem
             // Удаляем инфекцию ног при ампутации любой ноги
             RemCompDeferred<LegInfectionComponent>(target);
 
-            // Изменяем скорость передвижения
-            if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
-            {
-                var newWalk = MathF.Max(0.5f, speed.BaseWalkSpeed - 1.5f);
-                var newSprint = MathF.Max(0.5f, speed.BaseSprintSpeed - 1.5f);
+            // Считаем, сколько ног будет после этой ампутации
+            var legsAfterAmputation = amputated.Amputated.Count(l => l is AmputateLimb.LeftLeg or AmputateLimb.RightLeg) + 1;
 
-                _movement.ChangeBaseSpeed(target, newWalk, newSprint, speed.Acceleration, speed);
+            // Изменяем скорость передвижения ТОЛЬКО если это первая нога
+            if (legsAfterAmputation == 1)
+            {
+                if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
+                {
+                    var newWalk = MathF.Max(0.5f, speed.BaseWalkSpeed - 1.5f);
+                    var newSprint = MathF.Max(0.5f, speed.BaseSprintSpeed - 1.5f);
+
+                    _movement.ChangeBaseSpeed(target, newWalk, newSprint, speed.Acceleration, speed);
+                }
+                else
+                {
+                    // Если компонента нет, создаем его
+                    var newSpeed = EnsureComp<MovementSpeedModifierComponent>(target);
+                    var newWalk = MathF.Max(0.5f, 4.5f - 1.5f);
+                    var newSprint = MathF.Max(0.5f, 7.5f - 1.5f);
+
+                    _movement.ChangeBaseSpeed(target, newWalk, newSprint, 10f, newSpeed);
+                }
             }
-            else
+            // Если это вторая нога - ВОЗВРАЩАЕМ скорость к исходной
+            else if (legsAfterAmputation == 2)
             {
-                // Если компонента нет, создаем его
-                var newSpeed = EnsureComp<MovementSpeedModifierComponent>(target);
-                var newWalk = MathF.Max(0.5f, 4.5f - 1.5f);
-                var newSprint = MathF.Max(0.5f, 7.5f - 1.5f);
+                if (TryComp<MovementSpeedModifierComponent>(target, out var speed))
+                {
+                    // Возвращаем скорость к исходной (прибавляем 1.5)
+                    var originalWalk = speed.BaseWalkSpeed + 1.5f;
+                    var originalSprint = speed.BaseSprintSpeed + 1.5f;
 
-                _movement.ChangeBaseSpeed(target, newWalk, newSprint, 10f, newSpeed);
+                    _movement.ChangeBaseSpeed(target, originalWalk, originalSprint, speed.Acceleration, speed);
+                }
+
+                // ФУНКЦИЯ №1: Если ампутированы обе ноги - насильно укладываем персонажа
+                // Создаем компонент, который блокирует вставание
+                var blockStanding = EnsureComp<CannotStandComponent>(target);
+
+                // Насильно укладываем персонажа
+                _standing.Down(target, playSound: true, dropHeldItems: true, force: true);
+
+                _popup.PopupEntity(Loc.GetString("amputation-both-legs-removed-cannot-stand"), target, target, PopupType.LargeCaution);
             }
         }
         // Руки — уменьшение количества рук
@@ -380,13 +496,57 @@ public sealed class AmputationSystem : EntitySystem
             // Удаляем инфекцию рук при ампутации любой руки
             RemCompDeferred<HandInfectionComponent>(target);
 
-            // Используем метод из HandsSystem для уменьшения количества рук
-            _hands.AmputateArm(target);
+            // ИСПРАВЛЕНИЕ: Удаляем конкретную руку, а не случайную
+            if (TryComp<HandsComponent>(target, out var hands))
+            {
+                var handLocation = limb == AmputateLimb.LeftArm ? HandLocation.Left : HandLocation.Right;
+
+                // Находим руку с нужной локацией
+                var handToRemove = hands.Hands.FirstOrDefault(h => h.Value.Location == handLocation).Key;
+
+                if (!string.IsNullOrEmpty(handToRemove))
+                {
+                    // Пытаемся вызвать RemoveHand, если он существует
+                    _hands.RemoveHand(target, handToRemove);
+                }
+                else
+                {
+                    // Если не нашли руку по локации, используем старый метод
+                    _hands.AmputateArm(target);
+                }
+            }
+            else
+            {
+                // Если компонента рук нет, используем старый метод
+                _hands.AmputateArm(target);
+            }
         }
 
         // Отметка ампутации
         amputated.Amputated.Add(limb);
         Dirty(target, amputated);
+
+        // ФУНКЦИЯ №2: Если отсутствуют все конечности (обе руки и обе ноги), добавляем компонент LegsParalyzedComponent
+        var amputatedArmsCount = amputated.Amputated.Count(l => l is AmputateLimb.LeftArm or AmputateLimb.RightArm);
+        var amputatedLegsCount = amputated.Amputated.Count(l => l is AmputateLimb.LeftLeg or AmputateLimb.RightLeg);
+
+        if (amputatedArmsCount >= 2 && amputatedLegsCount >= 2)
+        {
+            EnsureComp<LegsParalyzedComponent>(target);
+            _popup.PopupEntity(Loc.GetString("amputation-all-limbs-removed-paralyzed"), target, target, PopupType.LargeCaution);
+        }
+
+        // Проигрываем звук успешной ампутации
+        if (tool.SuccessSound != null)
+        {
+            var successAudioParams = AudioParams.Default
+                .WithVolume(5f)
+                .WithMaxDistance(15f)
+                .WithVariation(0.1f)
+                .WithRolloffFactor(1.5f);
+
+            _audio.PlayEntity(tool.SuccessSound, Filter.Pvs(target), target, true, successAudioParams);
+        }
 
         _popup.PopupEntity(Loc.GetString("amputation-success",
             ("limb", Loc.GetString($"amputation-limb-{limb.ToString().ToLower()}"))),

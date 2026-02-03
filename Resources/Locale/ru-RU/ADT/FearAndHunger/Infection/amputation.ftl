@@ -1,5 +1,8 @@
 verb-categories-amputation = ампутация
-amputation-examine = Ампутированные конечность.
+amputation-examine = Ампутированные конечности.
+amputation-examine-detailed = Ампутированы: { $limbs }.
+amputation-examine-crawl-only = [color=yellow]Может передвигаться только ползком.[/color]
+amputation-examine-cannot-move = [color=red]Не может передвигаться.[/color]
 amputation-selected = Выбрана конечность для ампутации.
 amputation-started = Начинается ампутация...
 amputation-started-delay = Начинается ампутация...
@@ -26,9 +29,8 @@ amputation-verb-leftleg = Ампутировать левую ногу
 amputation-verb-rightleg = Ампутировать правую ногу
 amputation-verb-head = Ампутировать голову
 
-amputation-cannot-amputate-active-hand = Нельзя ампутировать руку, в которой держишь инструмент!
 amputation-both-legs-removed-cannot-stand = Обе ноги ампутированы! Вы не можете стоять.
-amputation-all-limbs-removed-paralyzed = Все конечности ампутированы! Вы полностью парализованы.
+amputation-all-limbs-removed-paralyzed = Все конечности ампутированы! Вы полностью парализован.
 
 # Для отображения состояния
 amputation-status-no-legs = Нет ног
