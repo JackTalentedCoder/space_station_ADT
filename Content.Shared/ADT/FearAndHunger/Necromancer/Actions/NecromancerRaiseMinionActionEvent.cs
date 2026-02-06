@@ -1,10 +1,9 @@
 using Content.Shared.Actions;
 using Content.Shared.ADT.Necromancer;
-using Robust.Shared.Serialization;
 
 namespace Content.Shared.Necromancer;
 
-public sealed partial class NecromancerRaiseMinionActionEvent : EntityTargetActionEvent
+public sealed partial class NecromancerRaiseMinionActionEvent : InstantActionEvent
 {
 }
 
@@ -18,15 +17,5 @@ public sealed partial class NecromancerOrderActionEvent : InstantActionEvent
 }
 
 public sealed partial class NecromancerRaiseDeadActionEvent : InstantActionEvent
-{
-}
-
-[Serializable, NetSerializable]
-public sealed partial class NecromancerRaiseMinionDoAfterEvent : SimpleDoAfterEvent
-{
-}
-
-[Serializable, NetSerializable]
-public sealed partial class NecromancerRaiseDeadDoAfterEvent : SimpleDoAfterEvent
 {
 }

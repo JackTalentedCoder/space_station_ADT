@@ -5,12 +5,15 @@
   description: Выбери рукой того, кого следует воскресить.
   components:
   - type: Action
-    useDelay: 4
+    useDelay: 8
     icon:
       sprite: Interface/Actions/actions_rat_king.rsi
       state: ratKingArmy
-  - type: InstantAction
+  - type: TargetAction
+  - type: EntityTargetAction
     event: !type:NecromancerRaiseMinionActionEvent
+    canTargetSelf: false
+    whitelist: { components: [ NecromancyAvailable ] }
 
 - type: entity
   parent: BaseAction
@@ -82,23 +85,3 @@
   - type: InstantAction
     event: !type:NecromancerOrderActionEvent
       type: Attack
-
-- type: entity
-  parent: BaseAction
-  id: ADTActionNecromancyOrderLoose
-  name: Вольно!
-  description: Прикажи своей армии действовать так, как пожелают.
-  components:
-  - type: Action
-    useDelay: 1
-    icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
-      state: looseOff
-    iconOn:
-      sprite: Interface/Actions/actions_rat_king.rsi
-      state: loose
-    priority: 8
-  - type: InstantAction
-    event:
-      !type:NecromancerOrderActionEvent
-      type: Loose

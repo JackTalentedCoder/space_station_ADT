@@ -25,7 +25,7 @@ public sealed partial class NecromancerComponent : Component
     /// Время, необходимое для воскрешения (в секундах)
     /// </summary>
     [DataField("raiseDuration")]
-    public float RaiseDuration = 8.0f;
+    public float RaiseDuration = 5.0f;
 
     /// <summary>
     /// Действие для массового воскрешения
@@ -95,6 +95,18 @@ public sealed partial class NecromancerComponent : Component
     public EntityUid? ActionOrderAttackEntity;
 
     /// <summary>
+    /// Действие приказа "Свободно"
+    /// </summary>
+    [DataField("actionOrderLoose", customTypeSerializer: typeof(PrototypeIdSerializer<EntityPrototype>))]
+    public string ActionOrderLoose = "ADTActionNecromancyOrderLoose";
+
+    /// <summary>
+    /// Сущность действия приказа "Свободно"
+    /// </summary>
+    [DataField("actionOrderLooseEntity")]
+    public EntityUid? ActionOrderLooseEntity;
+
+    /// <summary>
     /// Словарь приказов и соответствующих им криков/команд
     /// </summary>
     [DataField("orderCallouts")]
@@ -102,7 +114,8 @@ public sealed partial class NecromancerComponent : Component
     {
         { NecromancerOrderType.Stay, "NecromancerCommandStay" },
         { NecromancerOrderType.Follow, "NecromancerCommandFollow" },
-        { NecromancerOrderType.Attack, "NecromancerCommandAttack" }
+        { NecromancerOrderType.Attack, "NecromancerCommandAttack" },
+        { NecromancerOrderType.Loose, "NecromancerCommandLoose" }
     };
 }
 
@@ -111,5 +124,6 @@ public enum NecromancerOrderType : byte
 {
     Stay,
     Follow,
-    Attack
+    Attack,
+    Loose
 }

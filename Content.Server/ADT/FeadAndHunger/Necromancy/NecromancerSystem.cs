@@ -16,7 +16,6 @@ using System.Numerics;
 using Content.Shared.Pointing;
 using Robust.Server.GameObjects;
 using Robust.Shared.Map;
-using Content.Shared.Hands.Components;
 
 namespace Content.Server.ADT.Necromancer;
 
@@ -34,7 +33,8 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
         base.Initialize();
 
         SubscribeLocalEvent<NecromancerRaiseMinionDoAfterEvent>(OnRaiseMinionDoAfter);
-        SubscribeLocalEvent<NecromancerRaiseDeadDoAfterEvent>(OnRaiseDeadDoAfter);
+        // УБРАТЬ ЭТУ СТРОКУ: SubscribeLocalEvent<NecromancerComponent, AfterPointedAtEvent>(OnPointedAt);
+        // Подписка уже есть в базовом классе
     }
 
     private void OnRaiseMinionDoAfter(NecromancerRaiseMinionDoAfterEvent ev)
@@ -45,11 +45,11 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
             return;
         }
 
-        if (ev.Target == null)
+        if (ev.Target == null || ev.Used == null)
             return;
 
         var target = ev.Target.Value;
-        var necromancer = ev.User;
+        var necromancer = ev.Used.Value;
 
         if (!TryComp<NecromancerComponent>(necromancer, out var necromancerComp) ||
             !TryComp<NecromancyAvailableComponent>(target, out var availableComp))
@@ -62,22 +62,6 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
 
         RaiseMinion(necromancer, target, necromancerComp, availableComp);
         _popup.PopupEntity(Loc.GetString("necromancer-raise-success"), target, necromancer);
-    }
-
-    private void OnRaiseDeadDoAfter(NecromancerRaiseDeadDoAfterEvent ev)
-    {
-        if (ev.Cancelled)
-        {
-            _popup.PopupEntity(Loc.GetString("necromancer-mass-raise-cancelled"), ev.User, ev.User);
-            return;
-        }
-
-        var necromancer = ev.User;
-
-        if (!TryComp<NecromancerComponent>(necromancer, out var necromancerComp))
-            return;
-
-        MassRaiseDead(necromancer, necromancerComp);
     }
 
     protected override void AfterPointedAt(EntityUid uid, NecromancerComponent component, AfterPointedAtEvent args)
@@ -110,6 +94,12 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
             // Для приказа "Атака" очищаем цель следования
             _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
             // Цель атаки будет установлена через систему pointing
+        }
+        else if (orderType == NecromancerOrderType.Loose)
+        {
+            // Для приказа "Свободно" очищаем все цели
+            _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
+            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, null!);
         }
         else // Stay
         {
@@ -174,7 +164,7 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
         }
     }
 
-    protected override void TransformEntity(EntityUid entity, string prototype, NecromancyAvailableComponent available)
+    protected override void TransformEntity(EntityUid entity, string prototype)
     {
         if (string.IsNullOrEmpty(prototype))
             return;
@@ -190,30 +180,6 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
             necromancer = minionComp.Necromancer;
         }
 
-        // Сохраняем компонент Hands, если нужно
-        HandsComponent? hands = null;
-        if (available.KeepHands && TryComp<HandsComponent>(entity, out var handsComp))
-        {
-            // Копируем компонент
-            hands = new HandsComponent
-            {
-                ActiveHandId = handsComp.ActiveHandId,
-                Hands = new Dictionary<string, Hand>(handsComp.Hands),
-                SortedHands = new List<string>(handsComp.SortedHands),
-                DisableExplosionRecursion = handsComp.DisableExplosionRecursion,
-                BaseThrowspeed = handsComp.BaseThrowspeed,
-                ThrowRange = handsComp.ThrowRange,
-                ShowInHands = handsComp.ShowInHands,
-                NextThrowTime = handsComp.NextThrowTime,
-                ThrowCooldown = handsComp.ThrowCooldown,
-                HandDisplacement = handsComp.HandDisplacement,
-                LeftHandDisplacement = handsComp.LeftHandDisplacement,
-                RightHandDisplacement = handsComp.RightHandDisplacement,
-                InHandItemScale = handsComp.InHandItemScale,
-                CanBeStripped = handsComp.CanBeStripped
-            };
-        }
-
         // Удаляем старую сущность
         Del(entity);
 
@@ -223,35 +189,6 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
         // Восстанавливаем вращение
         var newTransform = Transform(newEntity);
         _transform.SetLocalRotation(newEntity, rotation, newTransform);
-
-        // Восстанавливаем компонент Hands, если нужно
-        if (hands != null)
-        {
-            var newHands = EnsureComp<HandsComponent>(newEntity);
-
-            // Копируем все свойства
-            newHands.ActiveHandId = hands.ActiveHandId;
-            newHands.Hands = new Dictionary<string, Hand>(hands.Hands);
-            newHands.SortedHands = new List<string>(hands.SortedHands);
-            newHands.DisableExplosionRecursion = hands.DisableExplosionRecursion;
-            newHands.BaseThrowspeed = hands.BaseThrowspeed;
-            newHands.ThrowRange = hands.ThrowRange;
-            newHands.ShowInHands = hands.ShowInHands;
-            newHands.NextThrowTime = hands.NextThrowTime;
-            newHands.ThrowCooldown = hands.ThrowCooldown;
-            newHands.HandDisplacement = hands.HandDisplacement;
-            newHands.LeftHandDisplacement = hands.LeftHandDisplacement;
-            newHands.RightHandDisplacement = hands.RightHandDisplacement;
-            newHands.InHandItemScale = hands.InHandItemScale;
-            newHands.CanBeStripped = hands.CanBeStripped;
-
-            Dirty(newEntity, newHands);
-        }
-        else if (available.KeepHands == false)
-        {
-            // Удаляем компонент Hands, если он есть
-            RemComp<HandsComponent>(newEntity);
-        }
 
         // Восстанавливаем связь с некромантом
         if (necromancer != null && TryComp<NecromancerComponent>(necromancer, out var necromancerComp))
