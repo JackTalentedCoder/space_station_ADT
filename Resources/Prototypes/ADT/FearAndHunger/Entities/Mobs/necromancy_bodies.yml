@@ -1,0 +1,233 @@
+- type: htnCompound
+  id: ADTGhoulCompound
+  branches:
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Stay
+    tasks:
+      - !type:HTNCompoundTask
+        task: IdleCompound
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Follow
+    tasks:
+      - !type:HTNCompoundTask
+        task: FollowCompound
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Attack
+    tasks:
+      - !type:HTNCompoundTask
+        task: RatServantTargetAttackCompound
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Loose
+    tasks:
+      - !type:HTNCompoundTask
+        task: SimpleHostileCompound
+
+### Трупы для некромансии
+
+- type: entity
+  parent: BaseMobSkeletonPerson
+  suffix: Fear and Hunger
+  save: false # mobs are currently not saveable.
+  id: ADTNecromancySkeleton
+  name: разложившийся труп
+  description: Некогда неудачливый странник, обглоданный до самих костей...
+  components:
+  - type: Destructible
+    thresholds:
+    - trigger:
+        !type:DamageTrigger
+        damage: 230
+      behaviors:
+      - !type:GibBehavior { }
+  - type: Damageable
+    damage:
+      types:
+        Bloodloss: 49
+        Asphyxiation: 76
+        Slash: 56
+        Blunt: 19
+  - type: Inventory
+    templateId: ADTSkeleton
+  # ADT Tweak start
+  - type: Tag
+    tags:
+    - CanPilot
+    - FootstepSound
+    - DoorBumpOpener
+    - AnomalyHost
+    - ChangelingBlacklist
+  - type: NecromancyAvailable
+    minionPrototype: ADTNecromancySkeletonAlive
+    raiseSound:
+      path: /Audio/Items/Stamp/thick_stamp_sub.ogg
+      params:
+        volume: -2
+        maxDistance: 5
+
+
+- type: entity
+  parent: SalvageHumanCorpse
+  suffix: Fear and Hunger
+  save: false # mobs are currently not saveable.
+  id: ADTNecromancyCorpse
+  name: неопознанный труп
+  description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
+  components:
+  - type: HumanoidAppearance
+    skinColor: "#94ad7f"
+  - type: Damageable
+    damage:
+      types:
+        Bloodloss: 49
+        Asphyxiation: 76
+        Slash: 56
+        Blunt: 19
+  - type: Inventory
+    templateId: ADTGhoul
+  # ADT Tweak start
+  - type: Tag
+    tags:
+    - CanPilot
+    - FootstepSound
+    - DoorBumpOpener
+    - AnomalyHost
+    - ChangelingBlacklist
+  - type: NecromancyAvailable
+    minionPrototype: ADTNecromancyGhoul
+    raiseSound:
+      path: /Audio/Items/Stamp/thick_stamp_sub.ogg
+      params:
+        volume: -2
+        maxDistance: 5
+
+### Результаты некромансии
+
+- type: entity
+  parent: BaseMobHuman
+  suffix: Fear and Hunger
+  id: ADTNecromancyGhoul
+  name: гуль
+  description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
+  categories: [ HideSpawnMenu ]
+  components:
+  - type: HumanoidAppearance
+    skinColor: "#b8ecb6"
+  - type: Inventory
+    templateId: ADTGhoul
+  - type: NecromancerMinion
+  - type: NpcFactionMember
+    factions:
+    - AllHostile
+  - type: InputMover
+  - type: MobMover
+  - type: Tag
+    tags:
+    - CanPilot
+    - FootstepSound
+    - DoorBumpOpener
+    - AnomalyHost
+    - ChangelingBlacklist
+  - type: HTN
+    rootTask:
+      task: ADTGhoulCompound
+    blackboard:
+      IdleRange: !type:Single
+        3.5
+      FollowCloseRange: !type:Single
+        2.0
+      FollowRange: !type:Single
+        3.0
+  - type: MobState
+    state: Alive
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      200: Dead
+  - type: MeleeWeapon
+    soundHit:
+      path: /Audio/Weapons/bladeslice.ogg
+    angle: 90
+    animation: WeaponArcClaw
+    damage:
+      types:
+        Slash: 3
+        Piercing: 9
+  - type: Physics
+    bodyType: KinematicController
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeCircle
+          radius: 0.35
+        mask:
+        - MobMask
+        layer:
+        - MobLayer
+
+- type: entity
+  parent: BaseMobSkeletonPerson
+  suffix: Fear and Hunger
+  id: ADTNecromancySkeletonAlive
+  name: скелет
+  description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
+  categories: [ HideSpawnMenu ]
+  components:
+  - type: HumanoidAppearance
+    skinColor: "#b8ecb6"
+  - type: Inventory
+    templateId: ADTSkeleton
+  - type: NecromancerMinion
+  - type: NpcFactionMember
+    factions:
+    - AllHostile
+  - type: InputMover
+  - type: MobMover
+  - type: Tag
+    tags:
+    - CanPilot
+    - FootstepSound
+    - DoorBumpOpener
+    - AnomalyHost
+    - ChangelingBlacklist
+  - type: HTN
+    rootTask:
+      task: ADTGhoulCompound
+    blackboard:
+      IdleRange: !type:Single
+        3.5
+      FollowCloseRange: !type:Single
+        2.0
+      FollowRange: !type:Single
+        3.0
+  - type: MobState
+    state: Alive
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      160: Dead
+  - type: MeleeWeapon
+    soundHit:
+      path: /Audio/Weapons/bladeslice.ogg
+    angle: 90
+    animation: WeaponArcClaw
+    damage:
+      types:
+        Slash: 3
+        Piercing: 8
+  - type: Physics
+    bodyType: KinematicController
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeCircle
+          radius: 0.35
+        mask:
+        - MobMask
+        layer:
+        - MobLayer
