@@ -16,21 +16,14 @@ public sealed partial class NecromancyAvailableComponent : Component
     public bool Raised = false;
 
     /// <summary>
-    /// Прототип существа, в которое превратится труп при воскрешении
-    /// Если null, то воскрешается та же самая сущность
+    /// Прототип существа, в которое превратится труп
     /// </summary>
     [DataField("minionPrototype")]
-    public string? MinionPrototype = null;
+    public string MinionPrototype = "ADTNecromancyGhoul"; // Укажите ваш прототип по умолчанию
 
     /// <summary>
     /// Длительность воскрешения в секундах
     /// </summary>
     [DataField("raiseDuration")]
-    public float RaiseDuration = 5.0f;
-
-    /// <summary>
-    /// Звук, который воспроизводится при воскрешении
-    /// </summary>
-    [DataField("raiseSound")]
-    public SoundSpecifier? RaiseSound;
+    public float RaiseDuration = 7.0f;
 }

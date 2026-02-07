@@ -2,6 +2,7 @@ using Robust.Shared.GameStates;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype;
+using Robust.Shared.Audio;
 
 namespace Content.Shared.ADT.Necromancer;
 
@@ -25,7 +26,13 @@ public sealed partial class NecromancerComponent : Component
     /// Время, необходимое для воскрешения (в секундах)
     /// </summary>
     [DataField("raiseDuration")]
-    public float RaiseDuration = 5.0f;
+    public float RaiseDuration = 7.0f;
+
+    /// <summary>
+    /// Звук, который воспроизводится во время процесса воскрешения
+    /// </summary>
+    [DataField("raiseProcessSound")]
+    public SoundSpecifier RaiseProcessSound = new SoundPathSpecifier("/Audio/ADT/Fear_and_Hunger/Effects/necromancy.ogg");
 
     /// <summary>
     /// Действие для массового воскрешения
@@ -95,18 +102,6 @@ public sealed partial class NecromancerComponent : Component
     public EntityUid? ActionOrderAttackEntity;
 
     /// <summary>
-    /// Действие приказа "Свободно"
-    /// </summary>
-    [DataField("actionOrderLoose", customTypeSerializer: typeof(PrototypeIdSerializer<EntityPrototype>))]
-    public string ActionOrderLoose = "ADTActionNecromancyOrderLoose";
-
-    /// <summary>
-    /// Сущность действия приказа "Свободно"
-    /// </summary>
-    [DataField("actionOrderLooseEntity")]
-    public EntityUid? ActionOrderLooseEntity;
-
-    /// <summary>
     /// Словарь приказов и соответствующих им криков/команд
     /// </summary>
     [DataField("orderCallouts")]
@@ -114,8 +109,7 @@ public sealed partial class NecromancerComponent : Component
     {
         { NecromancerOrderType.Stay, "NecromancerCommandStay" },
         { NecromancerOrderType.Follow, "NecromancerCommandFollow" },
-        { NecromancerOrderType.Attack, "NecromancerCommandAttack" },
-        { NecromancerOrderType.Loose, "NecromancerCommandLoose" }
+        { NecromancerOrderType.Attack, "NecromancerCommandAttack" }
     };
 }
 
@@ -124,6 +118,5 @@ public enum NecromancerOrderType : byte
 {
     Stay,
     Follow,
-    Attack,
-    Loose
+    Attack
 }

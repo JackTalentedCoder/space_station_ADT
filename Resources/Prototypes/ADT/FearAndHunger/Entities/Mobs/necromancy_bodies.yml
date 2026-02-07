@@ -1,5 +1,5 @@
 - type: htnCompound
-  id: ADTGhoulCompound
+  id: ADTSkeletonCompound
   branches:
   - preconditions:
       - !type:HasOrdersPrecondition
@@ -19,12 +19,51 @@
     tasks:
       - !type:HTNCompoundTask
         task: RatServantTargetAttackCompound
+
+- type: htnCompound
+  id: ADTGhoulCompound
+  branches:
   - preconditions:
       - !type:HasOrdersPrecondition
-        orders: enum.NecromancerOrderType.Loose
+        orders: enum.NecromancerOrderType.Stay
     tasks:
       - !type:HTNCompoundTask
-        task: SimpleHostileCompound
+        task: IdleCompound
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Follow
+    tasks:
+      - !type:HTNCompoundTask
+        task: FollowCompound
+  - preconditions:
+      - !type:HasOrdersPrecondition
+        orders: enum.NecromancerOrderType.Attack
+    tasks:
+      - !type:HTNCompoundTask
+        task: GhoulTargetAttackCompound
+
+- type: htnCompound
+  id: GhoulTargetAttackCompound
+  branches:
+    - tasks:
+        - !type:HTNCompoundTask
+          task: GhoulCombatCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: FollowCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: IdleCompound
+
+- type: htnCompound
+  id: GhoulCombatCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          operator: !type:UtilityOperator
+            proto: OrderedTargets
+        - !type:HTNCompoundTask
+          task: MeleeAttackOrderedTargetCompound
 
 ### Трупы для некромансии
 
@@ -70,7 +109,7 @@
 
 
 - type: entity
-  parent: SalvageHumanCorpse
+  parent: BaseMobHuman
   suffix: Fear and Hunger
   save: false # mobs are currently not saveable.
   id: ADTNecromancyCorpse
@@ -78,7 +117,7 @@
   description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
   components:
   - type: HumanoidAppearance
-    skinColor: "#94ad7f"
+    skinColor: "#b8ecb6"
   - type: Damageable
     damage:
       types:
@@ -97,6 +136,7 @@
     - AnomalyHost
     - ChangelingBlacklist
   - type: NecromancyAvailable
+    removeHands: true
     minionPrototype: ADTNecromancyGhoul
     raiseSound:
       path: /Audio/Items/Stamp/thick_stamp_sub.ogg
@@ -196,7 +236,7 @@
     - ChangelingBlacklist
   - type: HTN
     rootTask:
-      task: ADTGhoulCompound
+      task: ADTSkeletonCompound
     blackboard:
       IdleRange: !type:Single
         3.5

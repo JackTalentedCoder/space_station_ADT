@@ -14,6 +14,8 @@ using Robust.Shared.Serialization;
 using Content.Shared.Necromancer;
 using Content.Shared.Mobs;
 using Content.Shared.Pointing;
+using System.Linq;
+using Robust.Shared.Utility;
 
 namespace Content.Shared.ADT.Necromancer;
 
@@ -37,10 +39,9 @@ public abstract class SharedNecromancerSystem : EntitySystem
         SubscribeLocalEvent<NecromancerComponent, NecromancerOrderActionEvent>(OnOrderAction);
         SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseMinionActionEvent>(OnRaiseMinion);
         SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseDeadActionEvent>(OnRaiseDead);
-        SubscribeLocalEvent<NecromancerComponent, AfterPointedAtEvent>(OnPointedAt); // ЗДЕСЬ ОСТАЕТСЯ
+        SubscribeLocalEvent<NecromancerComponent, AfterPointedAtEvent>(OnPointedAt);
 
         SubscribeLocalEvent<NecromancerMinionComponent, ComponentShutdown>(OnMinionShutdown);
-
         SubscribeLocalEvent<NecromancyAvailableComponent, AfterInteractEvent>(OnAfterInteract);
     }
 
@@ -54,14 +55,12 @@ public abstract class SharedNecromancerSystem : EntitySystem
         _action.AddAction(uid, ref component.ActionOrderStayEntity, component.ActionOrderStay, component: comp);
         _action.AddAction(uid, ref component.ActionOrderFollowEntity, component.ActionOrderFollow, component: comp);
         _action.AddAction(uid, ref component.ActionOrderAttackEntity, component.ActionOrderAttack, component: comp);
-        _action.AddAction(uid, ref component.ActionOrderLooseEntity, component.ActionOrderLoose, component: comp);
 
         UpdateActions(uid, component);
     }
 
     private void OnShutdown(EntityUid uid, NecromancerComponent component, ComponentShutdown args)
     {
-        // Освобождаем всех миньонов при смерти некроманта
         foreach (var minion in component.Minions)
         {
             if (TryComp(minion, out NecromancerMinionComponent? minionComp))
@@ -77,7 +76,6 @@ public abstract class SharedNecromancerSystem : EntitySystem
         _action.RemoveAction(actions, component.ActionOrderStayEntity);
         _action.RemoveAction(actions, component.ActionOrderFollowEntity);
         _action.RemoveAction(actions, component.ActionOrderAttackEntity);
-        _action.RemoveAction(actions, component.ActionOrderLooseEntity);
     }
 
     private void OnOrderAction(EntityUid uid, NecromancerComponent component, NecromancerOrderActionEvent args)
@@ -99,9 +97,50 @@ public abstract class SharedNecromancerSystem : EntitySystem
         if (args.Handled)
             return;
 
-        // Это действие требует выбора цели, поэтому мы просто покажем сообщение
-        _popup.PopupEntity(Loc.GetString("necromancer-raise-minion-instruction"), uid, uid);
+        if (args.Target == EntityUid.Invalid)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-raise-minion-instruction"), uid, uid, PopupType.Medium);
+            args.Handled = true;
+            return;
+        }
+
+        var targetUid = args.Target;
+
+        if (!TryComp<NecromancyAvailableComponent>(targetUid, out var availableComp))
+        {
+            _popup.PopupEntity("Цель не может быть воскрешена.", uid, uid, PopupType.Small);
+            args.Handled = true;
+            return;
+        }
+
+        if (availableComp.Raised)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), targetUid, uid, PopupType.Medium);
+            args.Handled = true;
+            return;
+        }
+
         args.Handled = true;
+
+        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
+            new NecromancerRaiseMinionDoAfterEvent(), uid, target: targetUid, used: uid)
+        {
+            BreakOnDamage = false,
+            BreakOnHandChange = true,
+            BreakOnMove = true,
+            DistanceThreshold = 2f,
+            NeedHand = true,
+            DuplicateCondition = DuplicateConditions.SameTool,
+            Broadcast = true
+        };
+
+        if (component.RaiseProcessSound != null)
+        {
+            _audio.PlayPredicted(component.RaiseProcessSound, uid, uid);
+        }
+
+        _popup.PopupEntity(Loc.GetString("amputation-started", ("limb", "воскрешение")), targetUid, uid);
+        _doAfter.TryStartDoAfter(doAfterArgs);
     }
 
     private void OnRaiseDead(EntityUid uid, NecromancerComponent component, NecromancerRaiseDeadActionEvent args)
@@ -110,7 +149,25 @@ public abstract class SharedNecromancerSystem : EntitySystem
             return;
 
         args.Handled = true;
-        MassRaiseDead(uid, component);
+
+        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
+            new NecromancerRaiseDeadDoAfterEvent(), uid, used: uid)
+        {
+            BreakOnDamage = false,
+            BreakOnHandChange = true,
+            BreakOnMove = true,
+            NeedHand = true,
+            DuplicateCondition = DuplicateConditions.SameTool,
+            Broadcast = true
+        };
+
+        if (component.RaiseProcessSound != null)
+        {
+            _audio.PlayPredicted(component.RaiseProcessSound, uid, uid);
+        }
+
+        _popup.PopupEntity("Начинаю массовое воскрешение...", uid, uid);
+        _doAfter.TryStartDoAfter(doAfterArgs);
     }
 
     private void OnPointedAt(EntityUid uid, NecromancerComponent component, ref AfterPointedAtEvent args)
@@ -128,8 +185,12 @@ public abstract class SharedNecromancerSystem : EntitySystem
 
     private void OnMinionShutdown(EntityUid uid, NecromancerMinionComponent component, ComponentShutdown args)
     {
-        if (TryComp(component.Necromancer, out NecromancerComponent? necromancerComponent))
+        if (component.Necromancer != null &&
+            TryComp(component.Necromancer.Value, out NecromancerComponent? necromancerComponent))
+        {
             necromancerComponent.Minions.Remove(uid);
+            Dirty(component.Necromancer.Value, necromancerComponent);
+        }
     }
 
     private void OnAfterInteract(EntityUid uid, NecromancyAvailableComponent component, AfterInteractEvent args)
@@ -137,32 +198,37 @@ public abstract class SharedNecromancerSystem : EntitySystem
         if (args.Handled || !args.CanReach || args.Target == null)
             return;
 
-        // Проверяем, что взаимодействующий - некромант
-        if (!HasComp<NecromancerComponent>(args.User))
-            return;
+        var targetUid = args.Target.Value;
 
-        // Проверяем, что цель мертва и еще не воскрешена
-        if (!TryComp<MobStateComponent>(args.Target, out var mobState) || !_mobState.IsDead(args.Target.Value, mobState))
+        if (!HasComp<NecromancerComponent>(args.User))
             return;
 
         if (component.Raised)
         {
-            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), args.Target.Value, args.User);
+            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), targetUid, args.User, PopupType.Medium);
             return;
         }
 
         args.Handled = true;
 
-        // Создаем DoAfter для процесса воскрешения
-        var doAfterArgs = new DoAfterArgs(EntityManager, args.User, component.RaiseDuration,
-            new NecromancerRaiseMinionDoAfterEvent(), uid, target: args.Target, used: uid)
+        var doAfterArgs = new DoAfterArgs(EntityManager, args.User, TimeSpan.FromSeconds(component.RaiseDuration),
+            new NecromancerRaiseMinionDoAfterEvent(), uid, target: targetUid, used: args.User)
         {
-            BreakOnDamage = true,
+            BreakOnDamage = false,
+            BreakOnHandChange = true,
             BreakOnMove = true,
             DistanceThreshold = 2f,
-            NeedHand = true
+            NeedHand = true,
+            DuplicateCondition = DuplicateConditions.SameTool,
+            Broadcast = true
         };
 
+        if (TryComp<NecromancerComponent>(args.User, out var necromancerComp))
+        {
+            _audio.PlayPredicted(necromancerComp.RaiseProcessSound, args.User, args.User);
+        }
+
+        _popup.PopupEntity("Начинаю воскрешение...", targetUid, args.User);
         _doAfter.TryStartDoAfter(doAfterArgs);
     }
 
@@ -174,11 +240,9 @@ public abstract class SharedNecromancerSystem : EntitySystem
         _action.SetToggled(component.ActionOrderStayEntity, component.CurrentOrder == NecromancerOrderType.Stay);
         _action.SetToggled(component.ActionOrderFollowEntity, component.CurrentOrder == NecromancerOrderType.Follow);
         _action.SetToggled(component.ActionOrderAttackEntity, component.CurrentOrder == NecromancerOrderType.Attack);
-        _action.SetToggled(component.ActionOrderLooseEntity, component.CurrentOrder == NecromancerOrderType.Loose);
         _action.StartUseDelay(component.ActionOrderStayEntity);
         _action.StartUseDelay(component.ActionOrderFollowEntity);
         _action.StartUseDelay(component.ActionOrderAttackEntity);
-        _action.StartUseDelay(component.ActionOrderLooseEntity);
     }
 
     public void UpdateAllMinions(EntityUid uid, NecromancerComponent component)
@@ -203,52 +267,14 @@ public abstract class SharedNecromancerSystem : EntitySystem
     {
         // Реализация на сервере
     }
-
-    protected void RaiseMinion(EntityUid necromancer, EntityUid target, NecromancerComponent component, NecromancyAvailableComponent available)
-    {
-        // Помечаем как воскрешенный
-        available.Raised = true;
-        Dirty(target, available);
-
-        // Добавляем компонент миньона
-        var minionComp = EnsureComp<NecromancerMinionComponent>(target);
-        minionComp.Necromancer = necromancer;
-        Dirty(target, minionComp);
-
-        // Добавляем в список миньонов некроманта
-        component.Minions.Add(target);
-        Dirty(necromancer, component);
-
-        // Обновляем NPC миньона
-        UpdateMinionNpc(target, component.CurrentOrder);
-
-        // Воскрешаем существо
-        if (TryComp<MobStateComponent>(target, out var mobState))
-        {
-            _mobState.ChangeMobState(target, MobState.Alive, mobState);
-        }
-
-        // Если указан прототип для превращения
-        if (!string.IsNullOrEmpty(available.MinionPrototype))
-        {
-            TransformEntity(target, available.MinionPrototype);
-        }
-
-        // Проигрываем звук воскрешения
-        if (available.RaiseSound != null)
-        {
-            _audio.PlayPredicted(available.RaiseSound, target, necromancer);
-        }
-    }
-
-    protected virtual void TransformEntity(EntityUid entity, string prototype)
-    {
-        // Реализация превращения сущности в другой прототип
-        // Это нужно делать на сервере
-    }
 }
 
 [Serializable, NetSerializable]
 public sealed partial class NecromancerRaiseMinionDoAfterEvent : SimpleDoAfterEvent
+{
+}
+
+[Serializable, NetSerializable]
+public sealed partial class NecromancerRaiseDeadDoAfterEvent : SimpleDoAfterEvent
 {
 }

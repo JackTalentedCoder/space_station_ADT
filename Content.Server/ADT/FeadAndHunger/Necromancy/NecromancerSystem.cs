@@ -3,7 +3,6 @@ using Content.Server.NPC;
 using Content.Server.NPC.HTN;
 using Content.Server.NPC.Systems;
 using Content.Server.Popups;
-using Content.Shared.Actions;
 using Content.Shared.ADT.Necromancer;
 using Content.Shared.Dataset;
 using Content.Shared.Mobs.Components;
@@ -16,6 +15,9 @@ using System.Numerics;
 using Content.Shared.Pointing;
 using Robust.Server.GameObjects;
 using Robust.Shared.Map;
+using Content.Shared.Popups;
+using Robust.Shared.Audio.Systems;
+using Robust.Shared.Utility;
 
 namespace Content.Server.ADT.Necromancer;
 
@@ -27,88 +29,201 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
     [Dependency] private readonly TransformSystem _transform = default!;
     [Dependency] private readonly IEntityManager _entityManager = default!;
     [Dependency] private readonly HTNSystem _htn = default!;
+    [Dependency] private readonly SharedAudioSystem _audio = default!;
 
     public override void Initialize()
     {
         base.Initialize();
 
-        SubscribeLocalEvent<NecromancerRaiseMinionDoAfterEvent>(OnRaiseMinionDoAfter);
-        // УБРАТЬ ЭТУ СТРОКУ: SubscribeLocalEvent<NecromancerComponent, AfterPointedAtEvent>(OnPointedAt);
-        // Подписка уже есть в базовом классе
+        SubscribeLocalEvent<NecromancerRaiseMinionDoAfterEvent>(OnDoAfter);
+        SubscribeLocalEvent<NecromancerRaiseDeadDoAfterEvent>(OnDoAfterMass);
     }
 
-    private void OnRaiseMinionDoAfter(NecromancerRaiseMinionDoAfterEvent ev)
+    private void OnDoAfter(NecromancerRaiseMinionDoAfterEvent ev)
     {
+        if (ev.Used != null && TryComp<NecromancerComponent>(ev.Used, out var necromancerComp))
+        {
+            if (necromancerComp.RaiseProcessSound != null)
+            {
+                _audio.PlayPvs(necromancerComp.RaiseProcessSound, ev.Used.Value);
+            }
+        }
+
         if (ev.Cancelled)
         {
-            _popup.PopupEntity(Loc.GetString("necromancer-raise-cancelled"), ev.User, ev.User);
+            _popup.PopupEntity(Loc.GetString("necromancer-raise-cancelled"), ev.Target ?? ev.User, ev.User);
             return;
         }
 
-        if (ev.Target == null || ev.Used == null)
-            return;
-
-        var target = ev.Target.Value;
-        var necromancer = ev.Used.Value;
-
-        if (!TryComp<NecromancerComponent>(necromancer, out var necromancerComp) ||
+        if (!TryComp<NecromancerComponent>(ev.Used, out var tool) ||
+            ev.Target is not {} target ||
             !TryComp<NecromancyAvailableComponent>(target, out var availableComp))
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-failed"), ev.Target ?? ev.User, ev.User);
+            return;
+        }
+
+        if (availableComp.Raised)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), target, ev.User);
+            return;
+        }
+
+        PerformNecromancy(target, ev.Used.Value, tool, availableComp);
+    }
+
+    private void OnDoAfterMass(NecromancerRaiseDeadDoAfterEvent ev)
+    {
+        if (ev.Cancelled)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-mass-raise-cancelled"), ev.User, ev.User);
+            return;
+        }
+
+        if (!TryComp<NecromancerComponent>(ev.Used, out var necromancerComp))
             return;
 
-        if (!TryComp<MobStateComponent>(target, out var mobState) ||
-            !_mobState.IsDead(target, mobState) ||
-            availableComp.Raised)
-            return;
+        PerformMassNecromancy(ev.Used.Value, necromancerComp);
+    }
 
-        RaiseMinion(necromancer, target, necromancerComp, availableComp);
-        _popup.PopupEntity(Loc.GetString("necromancer-raise-success"), target, necromancer);
+    private void PerformNecromancy(EntityUid target, EntityUid necromancer, NecromancerComponent component, NecromancyAvailableComponent available)
+    {
+        available.Raised = true;
+        Dirty(target, available);
+
+        TransformToMinion(target, available.MinionPrototype, necromancer, component);
+
+        _popup.PopupEntity(Loc.GetString("necromancer-raise-success"), target, necromancer, PopupType.Medium);
+    }
+
+    private void PerformMassNecromancy(EntityUid necromancer, NecromancerComponent component)
+    {
+        var xform = Transform(necromancer);
+        var raisedCount = 0;
+
+        var query = EntityQueryEnumerator<NecromancyAvailableComponent, TransformComponent>();
+        while (query.MoveNext(out var entity, out var available, out var targetXform))
+        {
+            if (available.Raised)
+                continue;
+
+            var distance = (targetXform.WorldPosition - xform.WorldPosition).Length();
+            if (distance > component.RaiseDeadRadius)
+                continue;
+
+            available.Raised = true;
+            Dirty(entity, available);
+
+            TransformToMinion(entity, available.MinionPrototype, necromancer, component);
+            raisedCount++;
+        }
+
+        if (raisedCount > 0)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-mass-raise-success", ("count", raisedCount)), necromancer, necromancer);
+        }
+        else
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-no-available-corpses"), necromancer, necromancer);
+        }
+    }
+
+    private void TransformToMinion(EntityUid entity, string prototype, EntityUid necromancer, NecromancerComponent component)
+    {
+        if (string.IsNullOrEmpty(prototype))
+        {
+            _popup.PopupEntity("Ошибка: не указан прототип для превращения", necromancer, necromancer, PopupType.Small);
+            return;
+        }
+
+        try
+        {
+            var transform = Transform(entity);
+            var coordinates = transform.Coordinates;
+            var rotation = transform.LocalRotation;
+
+            var newEntity = _entityManager.SpawnEntity(prototype, coordinates);
+
+            _transform.SetWorldRotation(newEntity, rotation);
+
+            var minionComp = EnsureComp<NecromancerMinionComponent>(newEntity);
+            minionComp.Necromancer = necromancer;
+            Dirty(newEntity, minionComp);
+
+            component.Minions.Add(newEntity);
+            Dirty(necromancer, component);
+
+            // Инициализируем черную доску NPC перед применением приказа
+            if (TryComp<HTNComponent>(newEntity, out var htn))
+            {
+                _npc.SetBlackboard(newEntity, NPCBlackboard.CurrentOrderedTarget, EntityUid.Invalid);
+                _npc.SetBlackboard(newEntity, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
+                _npc.SetBlackboard(newEntity, NPCBlackboard.CurrentOrders, NecromancerOrderType.Follow);
+
+                if (component.CurrentOrder == NecromancerOrderType.Follow)
+                {
+                    _npc.SetBlackboard(newEntity, NPCBlackboard.FollowTarget,
+                        new EntityCoordinates(necromancer, Vector2.Zero));
+                }
+            }
+
+            UpdateMinionNpc(newEntity, component.CurrentOrder);
+
+            Del(entity);
+
+            _popup.PopupEntity($"Создан новый миньон!", necromancer, necromancer, PopupType.Medium);
+        }
+        catch (Exception ex)
+        {
+            _popup.PopupEntity($"Ошибка при создании миньона: {ex.Message}", necromancer, necromancer, PopupType.Medium);
+            Logger.Error($"Ошибка в TransformToMinion: {ex}");
+        }
     }
 
     protected override void AfterPointedAt(EntityUid uid, NecromancerComponent component, AfterPointedAtEvent args)
     {
+        if (args.Pointed == EntityUid.Invalid || !Exists(args.Pointed))
+            return;
+
         foreach (var minion in component.Minions)
         {
+            if (!Exists(minion) || !HasComp<HTNComponent>(minion))
+                continue;
+
             _npc.SetBlackboard(minion, NPCBlackboard.CurrentOrderedTarget, args.Pointed);
+
+            if (TryComp<HTNComponent>(minion, out var htn))
+            {
+                if (htn.Plan != null)
+                    _htn.ShutdownPlan(htn);
+                _htn.Replan(htn);
+            }
         }
     }
 
     public override void UpdateMinionNpc(EntityUid uid, NecromancerOrderType orderType)
     {
-        // Устанавливаем текущий приказ в черную доску
         _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrders, orderType);
 
-        // Обрабатываем специальные цели для разных приказов
         if (orderType == NecromancerOrderType.Follow)
         {
-            // Для приказа "Следовать" устанавливаем цель следования
             if (TryComp<NecromancerMinionComponent>(uid, out var minionComp) && minionComp.Necromancer != null)
             {
                 _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget,
                     new EntityCoordinates(minionComp.Necromancer.Value, Vector2.Zero));
             }
-            // Очищаем цель атаки при смене на режим следования
-            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, null!);
+            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, EntityUid.Invalid);
         }
         else if (orderType == NecromancerOrderType.Attack)
         {
-            // Для приказа "Атака" очищаем цель следования
             _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
-            // Цель атаки будет установлена через систему pointing
-        }
-        else if (orderType == NecromancerOrderType.Loose)
-        {
-            // Для приказа "Свободно" очищаем все цели
-            _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
-            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, null!);
         }
         else // Stay
         {
-            // Для приказа "Остаться" очищаем все цели
             _npc.SetBlackboard(uid, NPCBlackboard.FollowTarget, EntityCoordinates.Invalid);
-            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, null!);
+            _npc.SetBlackboard(uid, NPCBlackboard.CurrentOrderedTarget, EntityUid.Invalid);
         }
 
-        // Принудительно репланируем HTN для применения нового приказа
         if (TryComp<HTNComponent>(uid, out var htn))
         {
             if (htn.Plan != null)
@@ -124,87 +239,11 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
             !PrototypeManager.TryIndex<LocalizedDatasetPrototype>(datasetId, out var datasetPrototype))
             return;
 
-        var values = datasetPrototype.Values.ToList();
+        var values = datasetPrototype.Values;
         if (values.Count == 0)
             return;
 
         var msg = values[Random.Next(values.Count)];
         _chat.TrySendInGameICMessage(uid, msg, InGameICChatType.Speak, true);
-    }
-
-    public override void MassRaiseDead(EntityUid uid, NecromancerComponent component)
-    {
-        var xform = Transform(uid);
-        var raisedCount = 0;
-
-        var query = EntityQueryEnumerator<NecromancyAvailableComponent, MobStateComponent, TransformComponent>();
-        while (query.MoveNext(out var entity, out var available, out var mobState, out var targetXform))
-        {
-            if (available.Raised)
-                continue;
-
-            var distance = (targetXform.WorldPosition - xform.WorldPosition).Length();
-            if (distance > component.RaiseDeadRadius)
-                continue;
-
-            if (!_mobState.IsDead(entity, mobState))
-                continue;
-
-            RaiseMinion(uid, entity, component, available);
-            raisedCount++;
-        }
-
-        if (raisedCount > 0)
-        {
-            _popup.PopupEntity(Loc.GetString("necromancer-mass-raise-success", ("count", raisedCount)), uid, uid);
-        }
-        else
-        {
-            _popup.PopupEntity(Loc.GetString("necromancer-no-available-corpses"), uid, uid);
-        }
-    }
-
-    protected override void TransformEntity(EntityUid entity, string prototype)
-    {
-        if (string.IsNullOrEmpty(prototype))
-            return;
-
-        var transform = Transform(entity);
-        var coordinates = _transform.GetMoverCoordinates(entity);
-        var rotation = transform.LocalRotation;
-
-        // Сохраняем данные о некроманте
-        EntityUid? necromancer = null;
-        if (TryComp<NecromancerMinionComponent>(entity, out var minionComp))
-        {
-            necromancer = minionComp.Necromancer;
-        }
-
-        // Удаляем старую сущность
-        Del(entity);
-
-        // Создаем новую сущность по прототипу
-        var newEntity = _entityManager.SpawnEntity(prototype, coordinates);
-
-        // Восстанавливаем вращение
-        var newTransform = Transform(newEntity);
-        _transform.SetLocalRotation(newEntity, rotation, newTransform);
-
-        // Восстанавливаем связь с некромантом
-        if (necromancer != null && TryComp<NecromancerComponent>(necromancer, out var necromancerComp))
-        {
-            // Добавляем компонент миньона к новой сущности
-            var newMinionComp = EnsureComp<NecromancerMinionComponent>(newEntity);
-            newMinionComp.Necromancer = necromancer;
-            Dirty(newEntity, newMinionComp);
-
-            // Обновляем список миньонов у некроманта
-            necromancerComp.Minions.Remove(entity);
-            necromancerComp.Minions.Add(newEntity);
-            Dirty(necromancer.Value, necromancerComp);
-
-            // Применяем текущий приказ к новому миньону
-            UpdateMinionNpc(newEntity, necromancerComp.CurrentOrder);
-        }
     }
 }

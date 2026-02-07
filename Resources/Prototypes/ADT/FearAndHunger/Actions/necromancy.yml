@@ -1,5 +1,4 @@
 - type: entity
-  parent: BaseAction
   id: ADTActionNecromancy
   name: ручное воскрешение
   description: Выбери рукой того, кого следует воскресить.
@@ -9,11 +8,15 @@
     icon:
       sprite: Interface/Actions/actions_rat_king.rsi
       state: ratKingArmy
+    itemIconStyle: BigAction
   - type: TargetAction
   - type: EntityTargetAction
-    event: !type:NecromancerRaiseMinionActionEvent
+    # Добавьте whitelist для ограничения целей
+    whitelist:
+      components:
+      - NecromancyAvailable
     canTargetSelf: false
-    whitelist: { components: [ NecromancyAvailable ] }
+    event: !type:NecromancerRaiseMinionActionEvent
 
 - type: entity
   parent: BaseAction

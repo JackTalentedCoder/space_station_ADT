@@ -3,7 +3,7 @@ using Content.Shared.ADT.Necromancer;
 
 namespace Content.Shared.Necromancer;
 
-public sealed partial class NecromancerRaiseMinionActionEvent : InstantActionEvent
+public sealed partial class NecromancerRaiseMinionActionEvent : EntityTargetActionEvent
 {
 }
 

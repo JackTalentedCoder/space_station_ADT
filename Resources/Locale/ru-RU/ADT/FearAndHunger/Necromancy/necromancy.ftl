@@ -1,5 +1,6 @@
 necromancer-raise-minion-instruction = Выберите труп для воскрешения...
 necromancer-raise-cancelled = Воскрешение прервано.
+necromancer-mass-raise-cancelled = Массовое воскрешение прервано.
 necromancer-raise-success = Труп успешно воскрешен!
 necromancer-already-raised = Этот труп уже был воскрешен.
 necromancer-mass-raise-success = Гули один за другим встали под твоей магией крови...
@@ -8,7 +9,6 @@ necromancer-no-available-corpses = Нет доступных для воскре
 NecromancerCommandStay = Стоять!
 NecromancerCommandFollow = За мной!
 NecromancerCommandAttack = Атаковать!
-NecromancerCommandLoose = Вольно!
 
 action-name-necromancer-raise-minion = Воскресить миньона
 action-description-necromancer-raise-minion = Воскресить выбранный труп как своего миньона.
@@ -24,6 +24,3 @@ action-description-necromancer-order-follow = Приказать миньона�
 
 action-name-necromancer-order-attack = Приказ: Атаковать
 action-description-necromancer-order-attack = Приказать миньонам атаковать ваших врагов.
-
-action-name-necromancer-order-loose = Приказ: Свободно
-action-description-necromancer-order-loose = Позволить миньонам действовать самостоятельно.
