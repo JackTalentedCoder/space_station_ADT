@@ -111,6 +111,13 @@ public sealed partial class NecromancerComponent : Component
         { NecromancerOrderType.Follow, "NecromancerCommandFollow" },
         { NecromancerOrderType.Attack, "NecromancerCommandAttack" }
     };
+
+    /// <summary>
+    /// Доступна ли Верховная Некромантия (массовое воскрешение)
+    /// </summary>
+    [DataField("supremeNecromancy"), ViewVariables(VVAccess.ReadWrite)]
+    [AutoNetworkedField]
+    public bool SupremeNecromancy = false;
 }
 
 [Serializable, NetSerializable]

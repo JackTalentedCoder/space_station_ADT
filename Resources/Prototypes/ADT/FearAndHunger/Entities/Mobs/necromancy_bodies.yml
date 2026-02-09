@@ -116,6 +116,8 @@
   name: неопознанный труп
   description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
   components:
+  - type: ColorPainted
+    color: "#b8ecb6"
   - type: HumanoidAppearance
     skinColor: "#b8ecb6"
   - type: Damageable
@@ -154,6 +156,8 @@
   description: Некогда неудачливый странник, что пришёл в подземелья страха и голода.
   categories: [ HideSpawnMenu ]
   components:
+  - type: ColorPainted
+    color: "#b8ecb6"
   - type: HumanoidAppearance
     skinColor: "#b8ecb6"
   - type: Inventory

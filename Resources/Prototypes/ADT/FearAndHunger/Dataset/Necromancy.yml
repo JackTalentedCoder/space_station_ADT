@@ -1,0 +1,20 @@
+- type: dataset
+  id: NecromancerCommandStay
+  values:
+    - Стоять!
+    - На месте!
+    - Не двигаться!
+
+- type: dataset
+  id: NecromancerCommandFollow
+  values:
+    - За мной!
+    - Следуй за мной!
+    - Иди за мной!
+
+- type: dataset
+  id: NecromancerCommandAttack
+  values:
+    - Атаковать!
+    - В бой!
+    - Уничтожить врага!

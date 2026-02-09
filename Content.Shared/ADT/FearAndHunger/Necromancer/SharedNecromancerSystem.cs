@@ -36,9 +36,8 @@ public abstract class SharedNecromancerSystem : EntitySystem
 
         SubscribeLocalEvent<NecromancerComponent, ComponentStartup>(OnStartup);
         SubscribeLocalEvent<NecromancerComponent, ComponentShutdown>(OnShutdown);
-        SubscribeLocalEvent<NecromancerComponent, NecromancerOrderActionEvent>(OnOrderAction);
-        SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseMinionActionEvent>(OnRaiseMinion);
-        SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseDeadActionEvent>(OnRaiseDead);
+
+        // Оставляем подписку в Shared системе, но теперь метод protected
         SubscribeLocalEvent<NecromancerComponent, AfterPointedAtEvent>(OnPointedAt);
 
         SubscribeLocalEvent<NecromancerMinionComponent, ComponentShutdown>(OnMinionShutdown);
@@ -51,7 +50,12 @@ public abstract class SharedNecromancerSystem : EntitySystem
             return;
 
         _action.AddAction(uid, ref component.ActionRaiseMinionEntity, component.ActionRaiseMinion, component: comp);
-        _action.AddAction(uid, ref component.ActionRaiseDeadEntity, component.ActionRaiseDead, component: comp);
+
+        if (component.SupremeNecromancy)
+        {
+            _action.AddAction(uid, ref component.ActionRaiseDeadEntity, component.ActionRaiseDead, component: comp);
+        }
+
         _action.AddAction(uid, ref component.ActionOrderStayEntity, component.ActionOrderStay, component: comp);
         _action.AddAction(uid, ref component.ActionOrderFollowEntity, component.ActionOrderFollow, component: comp);
         _action.AddAction(uid, ref component.ActionOrderAttackEntity, component.ActionOrderAttack, component: comp);
@@ -78,99 +82,8 @@ public abstract class SharedNecromancerSystem : EntitySystem
         _action.RemoveAction(actions, component.ActionOrderAttackEntity);
     }
 
-    private void OnOrderAction(EntityUid uid, NecromancerComponent component, NecromancerOrderActionEvent args)
-    {
-        if (component.CurrentOrder == args.Type)
-            return;
-        args.Handled = true;
-
-        component.CurrentOrder = args.Type;
-        Dirty(uid, component);
-
-        DoCommandCallout(uid, component);
-        UpdateActions(uid, component);
-        UpdateAllMinions(uid, component);
-    }
-
-    private void OnRaiseMinion(EntityUid uid, NecromancerComponent component, NecromancerRaiseMinionActionEvent args)
-    {
-        if (args.Handled)
-            return;
-
-        if (args.Target == EntityUid.Invalid)
-        {
-            _popup.PopupEntity(Loc.GetString("necromancer-raise-minion-instruction"), uid, uid, PopupType.Medium);
-            args.Handled = true;
-            return;
-        }
-
-        var targetUid = args.Target;
-
-        if (!TryComp<NecromancyAvailableComponent>(targetUid, out var availableComp))
-        {
-            _popup.PopupEntity("Цель не может быть воскрешена.", uid, uid, PopupType.Small);
-            args.Handled = true;
-            return;
-        }
-
-        if (availableComp.Raised)
-        {
-            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), targetUid, uid, PopupType.Medium);
-            args.Handled = true;
-            return;
-        }
-
-        args.Handled = true;
-
-        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
-            new NecromancerRaiseMinionDoAfterEvent(), uid, target: targetUid, used: uid)
-        {
-            BreakOnDamage = false,
-            BreakOnHandChange = true,
-            BreakOnMove = true,
-            DistanceThreshold = 2f,
-            NeedHand = true,
-            DuplicateCondition = DuplicateConditions.SameTool,
-            Broadcast = true
-        };
-
-        if (component.RaiseProcessSound != null)
-        {
-            _audio.PlayPredicted(component.RaiseProcessSound, uid, uid);
-        }
-
-        _popup.PopupEntity(Loc.GetString("amputation-started", ("limb", "воскрешение")), targetUid, uid);
-        _doAfter.TryStartDoAfter(doAfterArgs);
-    }
-
-    private void OnRaiseDead(EntityUid uid, NecromancerComponent component, NecromancerRaiseDeadActionEvent args)
-    {
-        if (args.Handled)
-            return;
-
-        args.Handled = true;
-
-        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
-            new NecromancerRaiseDeadDoAfterEvent(), uid, used: uid)
-        {
-            BreakOnDamage = false,
-            BreakOnHandChange = true,
-            BreakOnMove = true,
-            NeedHand = true,
-            DuplicateCondition = DuplicateConditions.SameTool,
-            Broadcast = true
-        };
-
-        if (component.RaiseProcessSound != null)
-        {
-            _audio.PlayPredicted(component.RaiseProcessSound, uid, uid);
-        }
-
-        _popup.PopupEntity("Начинаю массовое воскрешение...", uid, uid);
-        _doAfter.TryStartDoAfter(doAfterArgs);
-    }
-
-    private void OnPointedAt(EntityUid uid, NecromancerComponent component, ref AfterPointedAtEvent args)
+    // ИЗМЕНЕНИЕ: меняем с private на protected virtual
+    protected virtual void OnPointedAt(EntityUid uid, NecromancerComponent component, ref AfterPointedAtEvent args)
     {
         if (component.CurrentOrder != NecromancerOrderType.Attack)
             return;
@@ -223,16 +136,12 @@ public abstract class SharedNecromancerSystem : EntitySystem
             Broadcast = true
         };
 
-        if (TryComp<NecromancerComponent>(args.User, out var necromancerComp))
-        {
-            _audio.PlayPredicted(necromancerComp.RaiseProcessSound, args.User, args.User);
-        }
-
         _popup.PopupEntity("Начинаю воскрешение...", targetUid, args.User);
         _doAfter.TryStartDoAfter(doAfterArgs);
     }
 
-    private void UpdateActions(EntityUid uid, NecromancerComponent? component = null)
+    // ИЗМЕНЕНИЕ: меняем с private на protected
+    protected void UpdateActions(EntityUid uid, NecromancerComponent? component = null)
     {
         if (!Resolve(uid, ref component))
             return;
@@ -266,6 +175,37 @@ public abstract class SharedNecromancerSystem : EntitySystem
     public virtual void MassRaiseDead(EntityUid uid, NecromancerComponent component)
     {
         // Реализация на сервере
+    }
+
+    public void SetSupremeNecromancy(EntityUid uid, bool enabled, NecromancerComponent? component = null)
+    {
+        if (!Resolve(uid, ref component))
+            return;
+
+        if (component.SupremeNecromancy == enabled)
+            return;
+
+        component.SupremeNecromancy = enabled;
+        Dirty(uid, component);
+
+        if (TryComp<ActionsComponent>(uid, out var actionsComp))
+        {
+            if (enabled)
+            {
+                _action.AddAction(uid, ref component.ActionRaiseDeadEntity, component.ActionRaiseDead, component: actionsComp);
+            }
+            else
+            {
+                var actions = new Entity<ActionsComponent?>(uid, actionsComp);
+                _action.RemoveAction(actions, component.ActionRaiseDeadEntity);
+            }
+        }
+
+        var message = enabled
+            ? "Вы обрели знание Верховной Некромантии!"
+            : "Вы утратили знание Верховной Некромантии.";
+
+        _popup.PopupEntity(message, uid, uid, PopupType.Medium);
     }
 }
 

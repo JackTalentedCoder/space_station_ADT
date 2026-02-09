@@ -1,3 +1,14 @@
+## Команды некроманта в чате
+NecromancerCommandStay = Стоять!
+NecromancerCommandFollow = За мной!
+NecromancerCommandAttack = Приготовиться к атаке!
+
+## Начало воскрешения
+necromancer-raise-start-chat = Vi fragoris spiritum nigrum ad corpus tabidum invoco!
+necromancer-mass-raise-start-chat = Пробуждаю армию мертвецов!
+necromancer-point-target-chat = В атаку на { $target }!
+
+## Попапы при воскрешении
 necromancer-raise-minion-instruction = Выберите труп для воскрешения...
 necromancer-raise-cancelled = Воскрешение прервано.
 necromancer-mass-raise-cancelled = Массовое воскрешение прервано.
@@ -6,10 +17,7 @@ necromancer-already-raised = Этот труп уже был воскрешен.
 necromancer-mass-raise-success = Гули один за другим встали под твоей магией крови...
 necromancer-no-available-corpses = Нет доступных для воскрешения трупов поблизости.
 
-NecromancerCommandStay = Стоять!
-NecromancerCommandFollow = За мной!
-NecromancerCommandAttack = Атаковать!
-
+## Имена и описания действий
 action-name-necromancer-raise-minion = Воскресить миньона
 action-description-necromancer-raise-minion = Воскресить выбранный труп как своего миньона.
 

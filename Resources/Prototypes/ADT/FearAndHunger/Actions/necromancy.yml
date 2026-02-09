@@ -6,8 +6,8 @@
   - type: Action
     useDelay: 8
     icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
-      state: ratKingArmy
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
+      state: necromancy
     itemIconStyle: BigAction
   - type: TargetAction
   - type: EntityTargetAction
@@ -27,7 +27,7 @@
   - type: Action
     useDelay: 6
     icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: ratKingDomain
   - type: InstantAction
     event: !type:NecromancerRaiseDeadActionEvent
@@ -41,10 +41,10 @@
   - type: Action
     useDelay: 1
     icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: stayOff
     iconOn:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: stay
     priority: 5
   - type: InstantAction
@@ -60,10 +60,10 @@
   - type: Action
     useDelay: 1
     icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: followOff
     iconOn:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: follow
     priority: 6
   - type: InstantAction
@@ -79,10 +79,10 @@
   - type: Action
     useDelay: 1
     icon:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: attackOff
     iconOn:
-      sprite: Interface/Actions/actions_rat_king.rsi
+      sprite: ADT/Fear_and_hunger/Interface/Actions/actions_necromancy.rsi
       state: attack
     priority: 7
   - type: InstantAction

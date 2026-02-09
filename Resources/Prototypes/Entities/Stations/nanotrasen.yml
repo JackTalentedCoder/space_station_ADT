@@ -28,7 +28,7 @@
     - BaseStationAllEventsEligible
     - BaseStationNanotrasen
     - BaseStationDeliveries
-    - BaseStationLavaland # ADT
+    # - BaseStationLavaland # ADT
   categories: [ HideSpawnMenu ]
   components:
     - type: Transform

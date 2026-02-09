@@ -18,6 +18,10 @@ using Robust.Shared.Map;
 using Content.Shared.Popups;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Utility;
+using Robust.Shared.Audio;
+using Robust.Shared.Player;
+using Content.Shared.DoAfter;
+using Robust.Shared.Random; // Добавлено для RandomExtensions
 
 namespace Content.Server.ADT.Necromancer;
 
@@ -35,20 +39,160 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
     {
         base.Initialize();
 
+        // Подписываемся на события действий на сервере
+        SubscribeLocalEvent<NecromancerComponent, NecromancerOrderActionEvent>(OnOrderActionServer);
+        SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseMinionActionEvent>(OnRaiseMinionAction);
+        SubscribeLocalEvent<NecromancerComponent, NecromancerRaiseDeadActionEvent>(OnRaiseDeadAction);
+
         SubscribeLocalEvent<NecromancerRaiseMinionDoAfterEvent>(OnDoAfter);
         SubscribeLocalEvent<NecromancerRaiseDeadDoAfterEvent>(OnDoAfterMass);
     }
 
-    private void OnDoAfter(NecromancerRaiseMinionDoAfterEvent ev)
+    // СЕРВЕРНАЯ ОБРАБОТКА КОМАНД С ЧАТОМ
+    private void OnOrderActionServer(EntityUid uid, NecromancerComponent component, NecromancerOrderActionEvent args)
     {
-        if (ev.Used != null && TryComp<NecromancerComponent>(ev.Used, out var necromancerComp))
+        if (component.CurrentOrder == args.Type)
+            return;
+
+        args.Handled = true;
+        component.CurrentOrder = args.Type;
+        Dirty(uid, component);
+
+        // ПРОИЗНОШЕНИЕ КОМАНДЫ В ЧАТ (используем датасеты)
+        DoCommandCallout(uid, component);
+
+        UpdateActions(uid, component);
+        UpdateAllMinions(uid, component);
+    }
+
+    private void OnRaiseMinionAction(EntityUid uid, NecromancerComponent component, NecromancerRaiseMinionActionEvent args)
+    {
+        if (args.Handled)
+            return;
+
+        if (args.Target == EntityUid.Invalid)
         {
-            if (necromancerComp.RaiseProcessSound != null)
-            {
-                _audio.PlayPvs(necromancerComp.RaiseProcessSound, ev.Used.Value);
-            }
+            _popup.PopupEntity(Loc.GetString("necromancer-raise-minion-instruction"), uid, uid, PopupType.Medium);
+            args.Handled = true;
+            return;
         }
 
+        var targetUid = args.Target;
+
+        if (!TryComp<NecromancyAvailableComponent>(targetUid, out var availableComp))
+        {
+            _popup.PopupEntity("Цель не может быть воскрешена.", uid, uid, PopupType.Small);
+            args.Handled = true;
+            return;
+        }
+
+        if (availableComp.Raised)
+        {
+            _popup.PopupEntity(Loc.GetString("necromancer-already-raised"), targetUid, uid, PopupType.Medium);
+            args.Handled = true;
+            return;
+        }
+
+        args.Handled = true;
+
+        // ЗВУК ПРИ НАЧАЛЕ ДЕЙСТВИЯ
+        if (component.RaiseProcessSound != null)
+        {
+            _audio.PlayPvs(component.RaiseProcessSound, uid);
+        }
+
+        // ПРОИЗНОШЕНИЕ В ЧАТ ПРИ НАЧАЛЕ ВОСКРЕШЕНИЯ
+        _chat.TrySendInGameICMessage(uid, Loc.GetString("necromancer-raise-start-chat"), InGameICChatType.Speak, true);
+
+        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
+            new NecromancerRaiseMinionDoAfterEvent(), uid, target: targetUid, used: uid)
+        {
+            BreakOnDamage = false,
+            BreakOnHandChange = true,
+            BreakOnMove = true,
+            DistanceThreshold = 2f,
+            NeedHand = true,
+            DuplicateCondition = DuplicateConditions.SameTool,
+            Broadcast = true
+        };
+
+        _popup.PopupEntity(Loc.GetString("amputation-started", ("limb", "воскрешение")), targetUid, uid);
+        _doAfter.TryStartDoAfter(doAfterArgs);
+    }
+
+    private void OnRaiseDeadAction(EntityUid uid, NecromancerComponent component, NecromancerRaiseDeadActionEvent args)
+    {
+        if (args.Handled)
+            return;
+
+        if (!component.SupremeNecromancy)
+        {
+            _popup.PopupEntity("Верховная Некромантия недоступна!", uid, uid, PopupType.Medium);
+            args.Handled = true;
+            return;
+        }
+
+        args.Handled = true;
+
+        // ЗВУК ПРИ НАЧАЛЕ ДЕЙСТВИЯ
+        if (component.RaiseProcessSound != null)
+        {
+            _audio.PlayPvs(component.RaiseProcessSound, uid);
+        }
+
+        // ПРОИЗНОШЕНИЕ В ЧАТ ПРИ НАЧАЛЕ МАССОВОГО ВОСКРЕШЕНИЯ
+        _chat.TrySendInGameICMessage(uid, Loc.GetString("necromancer-mass-raise-start-chat"), InGameICChatType.Speak, true);
+
+        var doAfterArgs = new DoAfterArgs(EntityManager, uid, TimeSpan.FromSeconds(component.RaiseDuration),
+            new NecromancerRaiseDeadDoAfterEvent(), uid, used: uid)
+        {
+            BreakOnDamage = false,
+            BreakOnHandChange = true,
+            BreakOnMove = true,
+            NeedHand = true,
+            DuplicateCondition = DuplicateConditions.SameTool,
+            Broadcast = true
+        };
+
+        _popup.PopupEntity("Начинаю массовое воскрешение...", uid, uid);
+        _doAfter.TryStartDoAfter(doAfterArgs);
+    }
+
+    protected override void OnPointedAt(EntityUid uid, NecromancerComponent component, ref AfterPointedAtEvent args)
+    {
+        if (component.CurrentOrder != NecromancerOrderType.Attack)
+            return;
+
+        // Вызываем базовую реализацию, которая вызовет AfterPointedAt
+        base.OnPointedAt(uid, component, ref args);
+    }
+
+    protected override void AfterPointedAt(EntityUid uid, NecromancerComponent component, AfterPointedAtEvent args)
+    {
+        if (args.Pointed == EntityUid.Invalid || !Exists(args.Pointed))
+            return;
+
+        // ПРОИЗНОШЕНИЕ В ЧАТ ПРИ УКАЗАНИИ ЦЕЛИ ДЛЯ АТАКИ
+        _chat.TrySendInGameICMessage(uid, Loc.GetString("necromancer-point-target-chat", ("target", args.Pointed)), InGameICChatType.Speak, true);
+
+        foreach (var minion in component.Minions)
+        {
+            if (!Exists(minion) || !HasComp<HTNComponent>(minion))
+                continue;
+
+            _npc.SetBlackboard(minion, NPCBlackboard.CurrentOrderedTarget, args.Pointed);
+
+            if (TryComp<HTNComponent>(minion, out var htn))
+            {
+                if (htn.Plan != null)
+                    _htn.ShutdownPlan(htn);
+                _htn.Replan(htn);
+            }
+        }
+    }
+
+    private void OnDoAfter(NecromancerRaiseMinionDoAfterEvent ev)
+    {
         if (ev.Cancelled)
         {
             _popup.PopupEntity(Loc.GetString("necromancer-raise-cancelled"), ev.Target ?? ev.User, ev.User);
@@ -153,7 +297,6 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
             component.Minions.Add(newEntity);
             Dirty(necromancer, component);
 
-            // Инициализируем черную доску NPC перед применением приказа
             if (TryComp<HTNComponent>(newEntity, out var htn))
             {
                 _npc.SetBlackboard(newEntity, NPCBlackboard.CurrentOrderedTarget, EntityUid.Invalid);
@@ -177,27 +320,6 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
         {
             _popup.PopupEntity($"Ошибка при создании миньона: {ex.Message}", necromancer, necromancer, PopupType.Medium);
             Logger.Error($"Ошибка в TransformToMinion: {ex}");
-        }
-    }
-
-    protected override void AfterPointedAt(EntityUid uid, NecromancerComponent component, AfterPointedAtEvent args)
-    {
-        if (args.Pointed == EntityUid.Invalid || !Exists(args.Pointed))
-            return;
-
-        foreach (var minion in component.Minions)
-        {
-            if (!Exists(minion) || !HasComp<HTNComponent>(minion))
-                continue;
-
-            _npc.SetBlackboard(minion, NPCBlackboard.CurrentOrderedTarget, args.Pointed);
-
-            if (TryComp<HTNComponent>(minion, out var htn))
-            {
-                if (htn.Plan != null)
-                    _htn.ShutdownPlan(htn);
-                _htn.Replan(htn);
-            }
         }
     }
 
@@ -237,12 +359,24 @@ public sealed class NecromancerSystem : SharedNecromancerSystem
     {
         if (!component.OrderCallouts.TryGetValue(component.CurrentOrder, out var datasetId) ||
             !PrototypeManager.TryIndex<LocalizedDatasetPrototype>(datasetId, out var datasetPrototype))
+        {
+            // Если датасет не найден, используем локализованные строки напрямую
+            var fallbackMsg = component.CurrentOrder switch
+            {
+                NecromancerOrderType.Stay => Loc.GetString("NecromancerCommandStay"),
+                NecromancerOrderType.Follow => Loc.GetString("NecromancerCommandFollow"),
+                NecromancerOrderType.Attack => Loc.GetString("NecromancerCommandAttack"),
+                _ => "Команда!"
+            };
+            _chat.TrySendInGameICMessage(uid, fallbackMsg, InGameICChatType.Speak, true);
             return;
+        }
 
         var values = datasetPrototype.Values;
         if (values.Count == 0)
             return;
 
+        // Исправленная строка - используем Random.Next для получения случайного индекса
         var msg = values[Random.Next(values.Count)];
         _chat.TrySendInGameICMessage(uid, msg, InGameICChatType.Speak, true);
     }
