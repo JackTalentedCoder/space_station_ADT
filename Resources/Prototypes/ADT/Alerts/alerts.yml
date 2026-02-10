@@ -243,11 +243,31 @@
   description: alerts-pickup-desc
 
 ### Fear and hunger status effects
+- type: alert
+  id: HumanSanity
+  clickEvent: !type:ShowSanityEvent
+  icons:
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity0
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity1
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity2
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity3
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity4
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+    state: sanity5
+  name: alerts-sanity-name
+  description: alerts-sanity-desc
+  minSeverity: 0
+  maxSeverity: 5
 
 - type: alert
   id: ADTAlertInfectedLegs
   icons:
-    - sprite: /Textures/ADT/Interface/Alerts/infected_leg.rsi
+    - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
       state: icon
   name: alerts-infection-leg-name
   description: alerts-infection-leg-desc
@@ -255,7 +275,7 @@
 - type: alert
   id: ADTAlertInfectedHands
   icons:
-    - sprite: /Textures/ADT/Interface/Alerts/infected-arm.rsi
+    - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected-arm.rsi
       state: icon
   name: alerts-infection-hands-name
   description: alerts-infection-hands-desc

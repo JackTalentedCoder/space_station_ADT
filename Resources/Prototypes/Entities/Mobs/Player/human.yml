@@ -6,6 +6,7 @@
   ### ADT-Tweak Start
   components:
   - type: Amputatable
+  - type: Sanity
   ### ADT-Tweak End
 
 #Syndie

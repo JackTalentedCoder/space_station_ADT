@@ -1,0 +1,29 @@
+{
+    "version": 1,
+    "license": "CC0-1.0",
+    "copyright": "Created by @deltanedas (github) for SS14",
+    "size": {
+      "x": 32,
+      "y": 32
+    },
+    "states": [
+      {
+        "name": "sanity5"
+      },
+      {
+        "name": "sanity4"
+      },
+      {
+        "name": "sanity3"
+      },
+      {
+        "name": "sanity2"
+      },
+      {
+        "name": "sanity1"
+      },
+      {
+        "name": "sanity0"
+      }
+    ]
+  }
