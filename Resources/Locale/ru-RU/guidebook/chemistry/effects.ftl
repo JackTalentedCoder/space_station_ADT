@@ -395,3 +395,19 @@ reagent-effect-guidebook-plant-seeds-remove =
         [1] Убирает
        *[other] убирают
     } семена из растения
+reagent-effect-guidebook-adjust-sanity =
+    { $chance ->
+        [1]
+            { $deltasign ->
+                [1] Снижает
+               *[-1] Восстанавливает
+            }
+       *[other]
+            { $deltasign ->
+                [1] снижают
+               *[-1] восстанавливают
+            }
+    } { $relative ->
+        [1] рассудок средне
+       *[other] рассудок на { NATURALFIXED($relative, 3) }x от обычного
+    }

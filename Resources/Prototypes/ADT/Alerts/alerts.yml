@@ -247,18 +247,18 @@
   id: HumanSanity
   clickEvent: !type:ShowSanityEvent
   icons:
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
-    state: sanity0
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
-    state: sanity1
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
-    state: sanity2
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
-    state: sanity3
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
-    state: sanity4
-  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/infected_leg.rsi
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
     state: sanity5
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
+    state: sanity4
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
+    state: sanity3
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
+    state: sanity2
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
+    state: sanity1
+  - sprite: /Textures/ADT/Fear_and_hunger/Interface/Alerts/sanity.rsi
+    state: sanity0
   name: alerts-sanity-name
   description: alerts-sanity-desc
   minSeverity: 0

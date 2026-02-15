@@ -1,68 +1,41 @@
-using Content.Shared.Alert;
-using Content.Shared.Damage;
 using Robust.Shared.GameStates;
-using Robust.Shared.Prototypes;
-using Robust.Shared.Serialization;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom;
-using Robust.Shared.Serialization.TypeSerializers.Implementations.Generic;
 
-namespace Content.Shared.ADT.Sanity.Components;
+namespace Content.Shared.ADT.Sanity;
 
-[RegisterComponent, NetworkedComponent]
-[AutoGenerateComponentState(fieldDeltas: true), AutoGenerateComponentPause]
+/// <summary>
+/// Хранит текущее значение рассудка, максимальное значение, порог для панофобии и расписание спада.
+/// </summary>
+[RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
 public sealed partial class SanityComponent : Component
 {
     /// <summary>
-    /// The sanity value as authoritatively set by the server as of <see cref="LastAuthoritativeSanityChangeTime"/>.
+    /// Текущий рассудок (0–100).
     /// </summary>
-    [DataField, ViewVariables(VVAccess.ReadOnly)]
-    [AutoNetworkedField]
-    public float LastAuthoritativeSanityValue = 100.0f;
+    [DataField, AutoNetworkedField]
+    public float CurrentSanity = 100f;
 
     /// <summary>
-    /// The time at which <see cref="LastAuthoritativeSanityValue"/> was last updated.
+    /// Максимальное значение рассудка (не изменяется).
     /// </summary>
-    [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), ViewVariables(VVAccess.ReadWrite)]
-    [AutoNetworkedField]
-    public TimeSpan LastAuthoritativeSanityChangeTime;
+    [DataField, AutoNetworkedField]
+    public float MaxSanity = 100f;
 
     /// <summary>
-    /// The base amount at which <see cref="LastAuthoritativeSanityValue"/> decays.
+    /// Порог, ниже которого добавляется компонент Panophobia.
     /// </summary>
-    [DataField("baseDecayRate"), ViewVariables(VVAccess.ReadWrite)]
-    public float BaseDecayRate = 0.1f; // 1 единица каждые 10 секунд
+    [DataField, AutoNetworkedField]
+    public float SanityThreshold = 15f;
 
     /// <summary>
-    /// The actual amount at which <see cref="LastAuthoritativeSanityValue"/> decays.
+    /// Время следующего планового уменьшения рассудка.
     /// </summary>
-    [DataField("actualDecayRate"), ViewVariables(VVAccess.ReadWrite)]
-    [AutoNetworkedField]
-    public float ActualDecayRate = 0.1f;
+    [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoNetworkedField]
+    public TimeSpan NextDecayTime;
 
     /// <summary>
-    /// Alert prototype for displaying sanity
+    /// Интервал между уменьшениями (10 секунд).
     /// </summary>
-    [DataField]
-    public ProtoId<AlertPrototype> SanityAlert = "HumanSanity";
-
-    /// <summary>
-    /// The time when the sanity will update next.
-    /// </summary>
-    [DataField("nextUpdateTime", customTypeSerializer: typeof(TimeOffsetSerializer)), ViewVariables(VVAccess.ReadWrite)]
-    [AutoNetworkedField]
-    [AutoPausedField]
-    public TimeSpan NextUpdateTime;
-
-    /// <summary>
-    /// The time between each sanity update.
-    /// </summary>
-    [ViewVariables(VVAccess.ReadWrite)]
-    [AutoNetworkedField]
-    public TimeSpan UpdateRate = TimeSpan.FromSeconds(10); // Каждые 10 секунд
-
-    /// <summary>
-    /// Prevent component replication to clients other than the owner,
-    /// doesn't affect prediction.
-    /// </summary>
-    public override bool SendOnlyToOwner => true;
+    [DataField, AutoNetworkedField]
+    public TimeSpan DecayInterval = TimeSpan.FromSeconds(10);
 }

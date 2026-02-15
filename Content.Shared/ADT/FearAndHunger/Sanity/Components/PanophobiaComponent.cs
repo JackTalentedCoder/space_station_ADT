@@ -1,13 +1,9 @@
 using Robust.Shared.GameStates;
 
-namespace Content.Shared.ADT.Sanity.Components;
+namespace Content.Shared.ADT.Sanity;
 
+/// <summary>
+/// Маркерный компонент: если есть на сущности, входящий урон увеличивается на 50%.
+/// </summary>
 [RegisterComponent, NetworkedComponent]
-public sealed partial class PanophobiaComponent : Component
-{
-    /// <summary>
-    /// Множитель получаемого урона
-    /// </summary>
-    [DataField("damageMultiplier"), ViewVariables(VVAccess.ReadWrite)]
-    public float DamageMultiplier = 1.5f; // 50% увеличение урона
-}
+public sealed partial class PanophobiaComponent : Component;

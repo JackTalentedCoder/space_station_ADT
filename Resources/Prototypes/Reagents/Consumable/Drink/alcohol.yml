@@ -70,6 +70,8 @@
         amount: 0.05
       - !type:SatiateThirst
         factor: 2
+      - !type:AdjustSanity
+        factor: 1
       # End ADT tweak
 
 - type: reagent
@@ -533,6 +535,10 @@
       - !type:AdjustReagent
         reagent: Ethanol
         amount: 0.2
+# ADT-Tweak Start
+      - !type:AdjustSanity
+        factor: 1.8
+# ADT-Tweak End
 
 - type: reagent
   id: Wine
@@ -556,6 +562,8 @@
       - !type:AdjustReagent
         reagent: Ethanol
         amount: 0.05
+      - !type:AdjustSanity
+        factor: 1.5
       # End ADT tweak
 
 - type: reagent
@@ -1160,10 +1168,10 @@
             Brute: -1
           # ADT-Tweak start
           types:
-            Poison: -0.5 
+            Poison: -0.5
             Shock: -0.33
             Cold: -0.33
-          # ADT-Tweak end 
+          # ADT-Tweak end
 
 - type: reagent
   id: DriestMartini

@@ -14,4 +14,4 @@ alerts-offer-desc = Кто-то передаёт вам предмет.
 alerts-pickup-name = Взять сущность
 alerts-pickup-desc = Вы в режиме готовности взять существо
 
-sanity-current = Продумывая своё состояние, вы понимаете, что ваша психика цела на { $sanity }%.
+sanity-current = [color=#664846][italic]Анализируя своё состояние, вы понимаете, что ваша психика цела на { $sanity }%.[/italic][/color]
